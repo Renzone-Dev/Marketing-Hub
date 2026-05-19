@@ -87,9 +87,26 @@ Todos los gráficos, tarjetas (KPIs) y la tabla cruzada responden inmediatamente
 - **Porcentajes de Inbound / Outbound:** Clasificación estricta mediante limpieza de strings.
 - **Día de mayor rendimiento (Mejor Día):** Moda estadística por iteración cruzada del día con mayor volumen.
 - **Horario de mayor rendimiento (Mejor Horario):** Moda estadística por iteración cruzada de las horas (mostrada en formato `XX:00 hrs`).
-- **Tablas Dinámicas (Pivot Tables):**
+- **Tablas Dinámicas (Pivot Tables) y Detalle:**
   - **Dirección vs Día de la Semana:** Intersección fija que cuenta leads únicos por día para evaluar el rendimiento micro (intrasemanal).
-  - **Dirección vs Semana:** Intersección dinámica que escanea los datos activos, identifica las semanas existentes, las ordena numéricamente y autogenera las columnas correspondientes para comparar la evolución macro del volumen Inbound/Outbound. Ambas tablas basan su conteo en la métrica estricta de leads únicos (`Cod Persona`).
+  - **Dirección vs Semana (Registros Totales):** Intersección dinámica que escanea los datos activos, identifica las semanas existentes, las ordena numéricamente y autogenera las columnas correspondientes para comparar la evolución macro del volumen Inbound/Outbound (incluyendo duplicados para coincidir con el total global).
+  - **Detalle de Registros (Inbound / Outbound):** Tabla detallada que agrupa la información basada en la intersección de Campaña, Canal, Segmento, Semana y Dirección, sumando el total absoluto de registros/filas.
+
+> [!IMPORTANT]
+> **Lógicas de agrupación y comparación de totales entre las tablas del Dashboard:**
+> Las tablas están estructuradas para brindar diferentes perspectivas analíticas, lo que influye en sus totales generales:
+> 
+> 1. **Tabla "Dirección vs Día de la Semana (Leads Únicos)" (Total intermedio):**
+>    - **Lógica de cálculo:** Agrupa y cuenta leads únicos (`Cod Persona`) **por cada día individual** para evaluar el rendimiento diario (micro).
+>    - **Efecto en el total:** Si un usuario interactúa el martes y el jueves, se contabiliza 1 el martes y 1 el jueves. Al sumar las columnas diarias para calcular el *Total General*, este usuario se sumará dos veces.
+> 
+> 2. **Tabla "Dirección vs Semana (Registros Totales)" (Total global/más alto):**
+>    - **Lógica de cálculo:** Agrupa y cuenta el **volumen total de registros** por cada semana.
+>    - **Efecto en el total:** No aplica restricciones de unicidad por código de persona, permitiendo medir y comparar el flujo real bruto de leads generados semana tras semana (incluyendo reintentos o campañas simultáneas). Su *Total General* coincide perfectamente con el del "Detalle de Registros".
+> 
+> 3. **Tabla "Detalle de Registros (Inbound / Outbound)" (Total global/más alto):**
+>    - **Lógica de cálculo:** Agrupa de manera granular por Campaña, Canal, Segmento, Semana y Dirección, sumando el total absoluto de registros/filas del archivo CSV.
+>    - **Efecto en el total:** Al igual que la tabla semanal, no desduplica leads. Coincide exactamente con el total de "Dirección vs Semana (Registros Totales)".
 
 ## 6. Capacidades y Límites de Carga
 
@@ -138,7 +155,7 @@ Dado que el dashboard procesa toda la información de manera local en el navegad
 
 > [!NOTE]
 > **Promedios Dinámicos en Tablas Cruzadas (Disclaimers)**
-> Se añadieron pequeños textos informativos (disclaimers) debajo de las tablas cruzadas de "Dirección vs Día" y "Dirección vs Semana". Estos textos calculan de manera automática y matemática el **promedio diario y semanal de leads**, desglosándolo entre Inbound y Outbound, según los filtros activos.
+> Se añadieron pequeños textos informativos (disclaimers) debajo de las tablas cruzadas de "Dirección vs Día" y "Dirección vs Semana". Estos textos calculan de manera automática y matemática el **promedio diario de leads únicos y el promedio semanal de registros**, desglosándolo entre Inbound y Outbound, según los filtros activos.
 
 > [!NOTE]
 > **Nueva Tabla: Detalle de Registros (Inbound / Outbound)**
