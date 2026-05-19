@@ -382,7 +382,7 @@
 
         <!-- Tabla Semana -->
         <div class="card overflow-x-auto">
-            <h2 class="text-lg font-semibold mb-6 text-gray-900 tracking-tight">Dirección vs Semana (Leads Únicos)</h2>
+            <h2 class="text-lg font-semibold mb-6 text-gray-900 tracking-tight">Dirección vs Semana (Registros Totales)</h2>
             <div class="rounded-lg border border-gray-200 overflow-hidden">
                 <table class="min-w-full text-sm text-left text-gray-600" id="pivotSemanaTable">
                     <thead class="bg-gray-50 text-gray-500 uppercase text-xs tracking-wider border-b border-gray-200" id="pivotSemanaHead">
@@ -1106,7 +1106,7 @@
          * Calcula conteos únicos por "Cod Persona" agrupados por número de semana.
          */
         function renderPivotSemanaTable() {
-            // Filas: Dirección, Cols: Semana (dinámicas), Val: Count unique Cod Persona
+            // Filas: Dirección, Cols: Semana (dinámicas), Val: Count total registrations
             const pivot = { 'Inbound': {}, 'Outbound': {} };
             const getSelectedValues = id => Array.from(document.getElementById(id).selectedOptions).map(o => o.value);
             const dirVals = getSelectedValues('filterDirection');
@@ -1122,16 +1122,15 @@
             // Sort weeks numerically
             const weeksOrder = Array.from(weeksSet).sort((a, b) => parseInt(a) - parseInt(b));
 
-            weeksOrder.forEach(w => { pivot['Inbound'][w] = new Set(); pivot['Outbound'][w] = new Set(); });
+            weeksOrder.forEach(w => { pivot['Inbound'][w] = 0; pivot['Outbound'][w] = 0; });
 
             filteredData.forEach(d => {
                 const dir = d['Dirección'];
                 if (!hasAllDir && !dirVals.includes(String(dir))) return;
                 
                 const week = d['Número de semana'];
-                const cod = d['Cod Persona'];
-                if ((dir === 'Inbound' || dir === 'Outbound') && week !== undefined && week !== null && week !== '' && pivot[dir][String(week)]) {
-                    pivot[dir][String(week)].add(cod);
+                if ((dir === 'Inbound' || dir === 'Outbound') && week !== undefined && week !== null && week !== '' && pivot[dir][String(week)] !== undefined) {
+                    pivot[dir][String(week)]++;
                 }
             });
 
@@ -1154,7 +1153,7 @@
                 let rowTotal = 0;
                 let tr = `<tr class="hover:bg-gray-50 transition"><td class="px-4 py-3 font-medium text-gray-900">${dir}</td>`;
                 weeksOrder.forEach(week => {
-                    const count = pivot[dir][week].size;
+                    const count = pivot[dir][week];
                     rowTotal += count;
                     colTotals[week] += count;
                     tr += `<td class="px-4 py-3">${count}</td>`;
@@ -1176,14 +1175,14 @@
             let inTotal = 0;
             let outTotal = 0;
             weeksOrder.forEach(w => {
-                inTotal += pivot['Inbound'][w].size;
-                outTotal += pivot['Outbound'][w].size;
+                inTotal += pivot['Inbound'][w];
+                outTotal += pivot['Outbound'][w];
             });
             const avgIn = (inTotal / numWeeks).toFixed(1);
             const avgOut = (outTotal / numWeeks).toFixed(1);
             const avgTotal = (grandTotal / numWeeks).toFixed(1);
 
-            document.getElementById('disclaimerPivotWeek').innerHTML = `* Promedio de leads por semana: <strong>${avgTotal}</strong> (Inbound: ${avgIn} / Outbound: ${avgOut})`;
+            document.getElementById('disclaimerPivotWeek').innerHTML = `* Promedio de registros por semana: <strong>${avgTotal}</strong> (Inbound: ${avgIn} / Outbound: ${avgOut})`;
         }
 
         /**
