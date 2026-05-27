@@ -1,0 +1,1496 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitor de Caídas e Intermitencias CRM - UPC</title>
+
+    <!-- TailWind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- PapaParse CDN for CSV parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+
+    <!-- SheetJS (XLSX) CDN for Excel parsing -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+    <!-- html2pdf.js CDN for PDF export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+    <!-- Link to external custom styles -->
+    <link rel="stylesheet" href="styles.css">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        upc: {
+                            red: '#D50000',
+                            redHover: '#B70000',
+                            dark: '#1A1A1A',
+                            grayDark: '#333333',
+                            grayLight: '#F3F4F6'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+
+<body class="p-4 md:p-8">
+
+    <!-- Screen Loader Overlay -->
+    <div id="loadingOverlay"
+        class="fixed inset-0 z-50 hidden flex-col items-center justify-center bg-white/95 backdrop-blur-sm transition-all duration-300">
+        <div class="relative flex items-center justify-center">
+            <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-upc-red shadow-lg"></div>
+            <div class="absolute text-xs font-bold text-upc-red">UPC</div>
+        </div>
+        <h2 class="text-xl font-bold text-upc-dark mt-6">Analizando datos del CRM...</h2>
+        <p class="text-sm text-gray-500 mt-2 text-center max-w-sm px-4">Procesando registros cronológicos, calculando
+            brechas de tiempo y categorizando incidentes operacionales.</p>
+    </div>
+
+    <!-- Info/Format Modal -->
+    <div id="formatModal"
+        class="fixed inset-0 z-50 hidden flex items-center justify-center bg-black/55 backdrop-blur-sm p-4">
+        <div
+            class="bg-white rounded-xl shadow-2xl p-6 max-w-2xl w-full border border-gray-100 overflow-y-auto max-h-[90vh]">
+            <div class="flex justify-between items-start border-b border-gray-200 pb-4 mb-4">
+                <h3 class="text-lg font-bold text-upc-dark flex items-center gap-2">
+                    <span class="text-upc-red">ℹ️</span> Guía de Carga y Mapeo de Columnas
+                </h3>
+                <button onclick="toggleModal('formatModal', false)"
+                    class="text-gray-400 hover:text-gray-600 font-semibold text-lg">&times;</button>
+            </div>
+
+            <p class="text-sm text-gray-600 mb-4">
+                El dashboard procesa automáticamente archivos <strong>Excel (.xlsx, .xls)</strong> y
+                <strong>CSV</strong> exportados del CRM de UPC. Para garantizar un correcto análisis, los nombres de
+                columnas originales se reestructuran automáticamente bajo el siguiente esquema:
+            </p>
+
+            <div class="border border-gray-200 rounded-lg overflow-hidden mb-4">
+                <table class="min-w-full text-xs text-left text-gray-600">
+                    <thead class="bg-gray-50 text-gray-700 uppercase font-semibold">
+                        <tr>
+                            <th class="px-4 py-2 border-b">Columna Original CRM</th>
+                            <th class="px-4 py-2 border-b text-upc-red">Nombre Mapeado</th>
+                            <th class="px-4 py-2 border-b">Propósito</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100 font-medium">
+                        <tr>
+                            <td class="px-4 py-2">Cod. persona (Contacto) (Contacto)</td>
+                            <td class="px-4 py-2 text-upc-red font-semibold">Código de Persona</td>
+                            <td class="px-4 py-2">Identificador único del postulante / lead.</td>
+                        </tr>
+                        <tr>
+                            <td class="px-4 py-2">Fecha de creación</td>
+                            <td class="px-4 py-2 text-upc-red font-semibold">Fecha</td>
+                            <td class="px-4 py-2">Fecha del registro del lead.</td>
+                        </tr>
+                        <tr>
+                            <td class="px-4 py-2">Hora</td>
+                            <td class="px-4 py-2 text-upc-red font-semibold">Hora</td>
+                            <td class="px-4 py-2">Hora exacta de creación del lead.</td>
+                        </tr>
+                        <tr>
+                            <td class="px-4 py-2">Campaña de referencia</td>
+                            <td class="px-4 py-2 text-upc-red font-semibold">Campaña</td>
+                            <td class="px-4 py-2">Campaña comercial asignada.</td>
+                        </tr>
+                        <tr>
+                            <td class="px-4 py-2">Template Data HSM</td>
+                            <td class="px-4 py-2 text-upc-red font-semibold">Canal</td>
+                            <td class="px-4 py-2">Canal por donde ingresa el lead (WhatsApp, etc.).</td>
+                        </tr>
+                        <tr>
+                            <td class="px-4 py-2">Fuente de origen (Referente a) (Contacto)</td>
+                            <td class="px-4 py-2 text-upc-red font-semibold">Fuente Origen</td>
+                            <td class="px-4 py-2">Origen o proveedor del tráfico de captación.</td>
+                        </tr>
+                        <tr>
+                            <td class="px-4 py-2">Sub estado</td>
+                            <td class="px-4 py-2 text-upc-red font-semibold">Estado</td>
+                            <td class="px-4 py-2">Estado interno de atención.</td>
+                        </tr>
+                        <tr>
+                            <td class="px-4 py-2">Periodo (Campaña de referencia) (Campaña)</td>
+                            <td class="px-4 py-2 text-upc-red font-semibold">Periodo</td>
+                            <td class="px-4 py-2">Periodo o ciclo académico.</td>
+                        </tr>
+                        <tr>
+                            <td class="px-4 py-2">Unidad de negocio (Campaña de referencia) (Campaña)</td>
+                            <td class="px-4 py-2 text-upc-red font-semibold">Unidad de Negocio</td>
+                            <td class="px-4 py-2">División académica (ej: Pregrado, EPE).</td>
+                        </tr>
+                        <tr>
+                            <td class="px-4 py-2">Código de campaña (Campaña de referencia) (Campaña)</td>
+                            <td class="px-4 py-2 text-upc-red font-semibold">Cód de Campaña</td>
+                            <td class="px-4 py-2">Código técnico de campaña de marketing.</td>
+                        </tr>
+                        <tr>
+                            <td class="px-4 py-2">Chattigo Conversation Id</td>
+                            <td class="px-4 py-2 text-upc-red font-semibold">ID Chattigo</td>
+                            <td class="px-4 py-2">Código de trazabilidad en canal de chat.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <h4 class="font-bold text-upc-dark text-sm mb-2">📌 Reglas de Negocio del Análisis:</h4>
+            <ul class="list-disc list-inside text-xs text-gray-600 space-y-1 mb-4 font-medium">
+                <li><span class="font-semibold text-upc-red">Regla Principal:</span> Si transcurren más de <strong>5
+                        minutos</strong> entre el ingreso de un lead y el siguiente, se considera una posible caída o
+                    intermitencia operacional.</li>
+                <li><span class="font-semibold">Clasificación de Incidentes:</span>
+                    <ul class="pl-4 list-circle space-y-0.5 mt-1">
+                        <li>5 a 10 minutos &rarr; Severidad <strong>Baja</strong></li>
+                        <li>10 a 20 minutos &rarr; Severidad <strong>Media</strong></li>
+                        <li>20 a 40 minutos &rarr; Severidad <strong>Alta</strong></li>
+                        <li>Más de 40 minutos &rarr; Severidad <strong>Crítica</strong></li>
+                    </ul>
+                </li>
+            </ul>
+
+            <button onclick="toggleModal('formatModal', false)"
+                class="w-full bg-upc-red hover:bg-upc-redHover text-white py-2 rounded-lg font-semibold transition text-sm shadow">
+                Entendido
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Container -->
+    <div id="captureArea" class="max-w-7xl mx-auto space-y-6">
+
+        <!-- Header -->
+        <header
+            class="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-gray-200 pb-6 gap-4">
+            <div class="flex items-center gap-4">
+                <img src="../upc.png" alt="UPC Logo" class="h-10 w-auto object-contain"
+                    onerror="this.src='https://upload.wikimedia.org/wikipedia/commons/e/ee/Logo_UPC_educaci%C3%B3n.png'">
+                <div>
+                    <h1 class="text-2xl md:text-3xl font-bold tracking-tight text-upc-dark">Monitor de Caídas e
+                        Intermitencias CRM</h1>
+                    <p class="text-sm font-semibold text-gray-500">Módulo de Analítica y Auditoría Operacional &bull;
+                        UPC</p>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-3 no-export">
+                <button onclick="toggleModal('formatModal', true)"
+                    class="bg-gray-100 border border-gray-200 text-gray-700 hover:bg-gray-200 px-3.5 py-2 rounded-lg font-semibold text-sm transition flex items-center gap-2"
+                    title="Ver formato de datos">
+                    <span>💡</span> Guía de Columnas
+                </button>
+                <button id="pdfBtn" onclick="exportReportPDF()"
+                    class="bg-upc-dark text-white hover:bg-upc-grayDark px-4 py-2 rounded-lg font-semibold text-sm transition flex items-center gap-2 shadow-sm"
+                    disabled>
+                    <span>📥</span> Exportar PDF
+                </button>
+            </div>
+        </header>
+
+        <!-- Drag & Drop Zone -->
+        <section
+            class="upc-card border-dashed border-2 border-gray-300 p-8 text-center cursor-pointer hover:border-upc-red transition-all no-export"
+            id="dropZone" onclick="document.getElementById('fileInput').click()">
+            <div class="flex flex-col items-center justify-center space-y-3">
+                <div class="bg-red-50 p-4 rounded-full text-upc-red">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12">
+                        </path>
+                    </svg>
+                </div>
+                <div>
+                    <span class="font-bold text-upc-dark text-lg block">Arrastra tu archivo aquí</span>
+                    <span class="text-sm text-gray-500 block mt-1">Formatos soportados: Excel (.xlsx, .xls) o CSV (.csv)
+                        exportados del CRM</span>
+                </div>
+                <button
+                    class="bg-upc-red hover:bg-upc-redHover text-white px-5 py-2.5 rounded-lg font-semibold text-sm shadow transition-all">
+                    Seleccionar Archivo
+                </button>
+                <input type="file" id="fileInput" class="hidden" accept=".csv, .xlsx, .xls">
+            </div>
+        </section>
+
+        <!-- Columns Mapping & Health Checks (Hidden initially) -->
+        <section id="columnMappingSection" class="upc-card space-y-4 hidden transition-all duration-300">
+            <h2 class="text-md font-bold text-upc-dark flex items-center gap-2">
+                <span>🔍</span> Estado de Mapeo y Calidad de Archivo
+            </h2>
+
+            <!-- Mapping Badges Grid -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3" id="mappingBadgesContainer">
+                <!-- Mapped elements injected here -->
+            </div>
+
+            <!-- Data Quality Flags -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 border-t border-gray-100">
+                <div class="flex items-center gap-3 p-3 bg-amber-50 rounded-lg border border-amber-200">
+                    <span class="text-2xl text-amber-600">⚠️</span>
+                    <div>
+                        <span class="text-xs font-bold text-amber-800 uppercase block tracking-wider">Registros
+                            Duplicados</span>
+                        <span class="text-lg font-extrabold text-amber-900 mt-0.5 block" id="auditDuplicates">0</span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3 p-3 bg-red-50 rounded-lg border border-red-200">
+                    <span class="text-2xl text-red-600">🚫</span>
+                    <div>
+                        <span class="text-xs font-bold text-red-800 uppercase block tracking-wider">Timestamps
+                            Inválidos</span>
+                        <span class="text-lg font-extrabold text-red-900 mt-0.5 block" id="auditInvalids">0</span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                    <span class="text-2xl text-blue-600">❓</span>
+                    <div>
+                        <span class="text-xs font-bold text-blue-800 uppercase block tracking-wider">Campos Faltantes
+                            (Nulos)</span>
+                        <span class="text-lg font-extrabold text-blue-900 mt-0.5 block" id="auditMissings">0</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Dashboard Analytics Dashboard (Hidden initially) -->
+        <div id="analyticsDashboard" class="space-y-6 hidden">
+
+            <!-- KPI Cards Grid -->
+            <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                <div class="upc-card flex flex-col justify-between">
+                    <span class="text-xs font-bold text-gray-500 uppercase tracking-wider block">Leads Totales</span>
+                    <span class="text-3xl font-extrabold text-upc-dark mt-2 block" id="kpiLeads">0</span>
+                    <span class="text-xs text-gray-400 mt-1 block">Leads cargados en total</span>
+                </div>
+                <div class="upc-card flex flex-col justify-between border-l-4 border-l-upc-red">
+                    <span class="text-xs font-bold text-gray-500 uppercase tracking-wider block">Intermitencias
+                        CRM</span>
+                    <span class="text-3xl font-extrabold text-upc-red mt-2 block" id="kpiOutages">0</span>
+                    <span class="text-xs text-gray-400 mt-1 block">Brechas mayores a 5 min</span>
+                </div>
+                <div class="upc-card flex flex-col justify-between">
+                    <span class="text-xs font-bold text-gray-500 uppercase tracking-wider block">Máxima Brecha</span>
+                    <span class="text-3xl font-extrabold text-upc-dark mt-2 block" id="kpiMaxGap">-</span>
+                    <span class="text-xs text-gray-400 mt-1 block" id="kpiMaxGapDates">Periodo más largo sin
+                        leads</span>
+                </div>
+                <div class="upc-card flex flex-col justify-between">
+                    <span class="text-xs font-bold text-gray-500 uppercase tracking-wider block">Frecuencia
+                        Promedio</span>
+                    <span class="text-3xl font-extrabold text-upc-dark mt-2 block" id="kpiAvgGap">-</span>
+                    <span class="text-xs text-gray-400 mt-1 block">Tiempo promedio entre leads</span>
+                </div>
+                <div class="upc-card flex flex-col justify-between relative overflow-hidden" id="kpiContinuityCard">
+                    <span class="text-xs font-bold text-gray-500 uppercase tracking-wider block">Continuidad
+                        Operativa</span>
+                    <span class="text-3xl font-extrabold mt-2 block" id="kpiContinuity">100%</span>
+                    <span class="text-xs text-gray-400 mt-1 block">Uptime estimado de CRM</span>
+                </div>
+            </section>
+
+            <!-- Executive Summary Panel -->
+            <section class="upc-card space-y-4">
+                <div class="border-b border-gray-200">
+                    <nav class="flex space-x-6" aria-label="Tabs">
+                        <button onclick="switchTab('businessTab', 'techTab', this)"
+                            class="tab-btn active pb-3 text-sm font-bold text-gray-500 hover:text-upc-red flex items-center gap-1.5">
+                            <span>💼</span> Resumen Ejecutivo (Negocio)
+                        </button>
+                        <button onclick="switchTab('techTab', 'businessTab', this)"
+                            class="tab-btn pb-3 text-sm font-bold text-gray-500 hover:text-upc-red flex items-center gap-1.5">
+                            <span>💻</span> Análisis Operacional (TI / Sistemas)
+                        </button>
+                    </nav>
+                </div>
+
+                <!-- Business Tab Content -->
+                <div id="businessTab" class="space-y-3 pt-2 text-sm text-gray-700 leading-relaxed">
+                    <h3 class="text-lg font-bold text-upc-dark">Impacto Comercial de Intermitencias CRM</h3>
+                    <p id="businessSummaryText">No hay datos procesados.</p>
+
+                    <div class="bg-red-50 border border-red-100 rounded-lg p-4 mt-3 flex items-start gap-3">
+                        <span class="text-xl">💡</span>
+                        <div>
+                            <span class="font-bold text-upc-red block text-xs uppercase tracking-wide">Foco en
+                                Conversión</span>
+                            <p class="text-xs text-red-950 mt-1 leading-relaxed">
+                                Un lead de captación directa (Inbound) que no se registra a tiempo sufre una caída
+                                drástica en su probabilidad de conversión. Si el CRM experimenta caídas, la cola de
+                                atención se congela, demorando el contacto inicial y permitiendo que competidores capten
+                                al prospecto primero.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tech Tab Content -->
+                <div id="techTab" class="space-y-3 pt-2 text-sm text-gray-700 leading-relaxed hidden">
+                    <h3 class="text-lg font-bold text-upc-dark">Auditoría Técnica del Pipeline de Ingesta</h3>
+                    <p id="techSummaryText">No hay datos procesados.</p>
+
+                    <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 mt-3 flex items-start gap-3">
+                        <span class="text-xl">🛠️</span>
+                        <div>
+                            <span class="font-bold text-gray-700 block text-xs uppercase tracking-wide">Acciones
+                                Técnicas Recomendadas</span>
+                            <p class="text-xs text-gray-600 mt-1 leading-relaxed">
+                                Validar la cola de procesamiento del webhook de captación. En periodos de alta carga
+                                (campañas masivas), es probable que el middleware del CRM esté sufriendo saturación
+                                debido a limitaciones de concurrencia de la API o latencia en la base de datos
+                                transaccional.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Visualizations Section -->
+            <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Severity Breakdown Chart -->
+                <div class="upc-card flex flex-col justify-between min-h-[350px]">
+                    <h3
+                        class="text-sm font-bold text-upc-dark border-b border-gray-100 pb-3 mb-2 flex items-center gap-1.5">
+                        <span>📊</span> Distribución de Incidentes por Severidad
+                    </h3>
+                    <div class="relative flex-1 flex items-center justify-center p-2">
+                        <canvas id="severityChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Gaps by Hour Chart -->
+                <div class="upc-card flex flex-col justify-between min-h-[350px]">
+                    <h3
+                        class="text-sm font-bold text-upc-dark border-b border-gray-100 pb-3 mb-2 flex items-center gap-1.5">
+                        <span>⏰</span> Concentración de Incidentes por Hora
+                    </h3>
+                    <div class="relative flex-1 flex items-center justify-center p-2">
+                        <canvas id="hourlyChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Timeline Chart -->
+                <div class="upc-card flex flex-col justify-between min-h-[350px]">
+                    <h3
+                        class="text-sm font-bold text-upc-dark border-b border-gray-100 pb-3 mb-2 flex items-center gap-1.5">
+                        <span>📈</span> Historial Operativo Diario
+                    </h3>
+                    <div class="relative flex-1 flex items-center justify-center p-2">
+                        <canvas id="timelineChart"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Detailed Incidents Table -->
+            <section class="upc-card space-y-4">
+                <div
+                    class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-gray-100 pb-4">
+                    <div>
+                        <h3 class="text-md font-bold text-upc-dark flex items-center gap-1.5">
+                            <span>🚨</span> Registro Completo de Incidentes Detectados
+                        </h3>
+                        <p class="text-xs text-gray-500 font-medium">Lista de brechas cronológicas de leads superiores a
+                            5 minutos</p>
+                    </div>
+
+                    <!-- Search & Filter Controls -->
+                    <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto no-export">
+                        <input type="text" id="tableSearch" placeholder="Buscar por Código..."
+                            class="border border-gray-300 rounded-lg px-3 py-1.5 text-xs focus:ring-1 focus:ring-upc-red focus:border-upc-red outline-none w-full sm:w-44 transition-all">
+                        <select id="severityFilter"
+                            class="border border-gray-300 rounded-lg px-3 py-1.5 text-xs focus:ring-1 focus:ring-upc-red focus:border-upc-red outline-none bg-white text-gray-700 font-medium transition-all">
+                            <option value="ALL">Todas las Severidades</option>
+                            <option value="Baja">Baja (5 - 10 min)</option>
+                            <option value="Media">Media (10 - 20 min)</option>
+                            <option value="Alta">Alta (20 - 40 min)</option>
+                            <option value="Crítica">Crítica (> 40 min)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Table Wrapper -->
+                <div class="overflow-x-auto rounded-lg border border-gray-200 bg-white">
+                    <table class="min-w-full text-xs text-left text-gray-600">
+                        <thead
+                            class="bg-gray-50 text-gray-500 uppercase tracking-wider font-semibold border-b border-gray-200">
+                            <tr>
+                                <th class="px-4 py-3 font-semibold">Falla N°</th>
+                                <th class="px-4 py-3 font-semibold">Lead Anterior (Cód.)</th>
+                                <th class="px-4 py-3 font-semibold">Lead Siguiente (Cód.)</th>
+                                <th class="px-4 py-3 font-semibold">Inicio Intermitencia</th>
+                                <th class="px-4 py-3 font-semibold">Fin Intermitencia</th>
+                                <th class="px-4 py-3 font-semibold">Duración (Minutos)</th>
+                                <th class="px-4 py-3 font-semibold text-center">Severidad</th>
+                            </tr>
+                        </thead>
+                        <tbody id="incidentsTableBody" class="divide-y divide-gray-100 font-medium">
+                            <!-- Injected dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination Panel -->
+                <div class="flex justify-between items-center pt-2 text-xs no-export">
+                    <span class="text-gray-500" id="tablePaginationInfo">Mostrando 0 a 0 de 0 incidentes</span>
+                    <div class="flex items-center gap-1">
+                        <button onclick="changePage(-1)" id="prevPageBtn"
+                            class="border border-gray-300 text-gray-600 hover:bg-gray-50 px-2.5 py-1.5 rounded transition font-bold disabled:opacity-50 disabled:hover:bg-transparent"
+                            disabled>&lt; Ant</button>
+                        <button onclick="changePage(1)" id="nextPageBtn"
+                            class="border border-gray-300 text-gray-600 hover:bg-gray-50 px-2.5 py-1.5 rounded transition font-bold disabled:opacity-50 disabled:hover:bg-transparent"
+                            disabled>Sig &gt;</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Suggestions and Improvements Block -->
+            <section class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Potential Causes & Actions -->
+                <div class="upc-card space-y-4">
+                    <h3 class="text-md font-bold text-upc-dark border-b border-gray-100 pb-3 flex items-center gap-2">
+                        <span>🎯</span> Posibles Causas y Acciones de Mitigación
+                    </h3>
+                    <ul class="space-y-3.5 text-xs text-gray-600 leading-relaxed font-medium">
+                        <li class="flex items-start gap-2.5">
+                            <span class="text-upc-red font-bold text-base mt-0.5">&bull;</span>
+                            <div>
+                                <strong class="text-upc-dark block text-xs">Saturación del webhook o colas de eventos
+                                    (TI):</strong>
+                                Gaps que se concentran en horarios pico de marketing sugieren retraso en el backend de
+                                ingesta. Implementar un backend de mensajería (como RabbitMQ o AWS SQS) para encolar
+                                llamadas asíncronas de Chattigo y el CRM sin generar pérdidas de datos.
+                            </div>
+                        </li>
+                        <li class="flex items-start gap-2.5">
+                            <span class="text-upc-red font-bold text-base mt-0.5">&bull;</span>
+                            <div>
+                                <strong class="text-upc-dark block text-xs">Caídas transaccionales del servidor
+                                    (TI):</strong>
+                                Incidentes de severidad Crítica (>40 min) suelen indicar caídas de servicio o ventanas
+                                de mantenimiento no planificadas. TI debe cotejar la tabla de incidentes con los logs
+                                del servidor IIS/Apache para diagnosticar reinicios imprevistos.
+                            </div>
+                        </li>
+                        <li class="flex items-start gap-2.5">
+                            <span class="text-upc-red font-bold text-base mt-0.5">&bull;</span>
+                            <div>
+                                <strong class="text-upc-dark block text-xs">Pérdida de Leads en Canales Digitales
+                                    (Negocio):</strong>
+                                Coordinar con Chattigo la auditoría de estados de conexión de los canales (WhatsApp/Web
+                                chat). Caídas periódicas podrían indicar desvinculaciones de token API de WhatsApp
+                                Business.
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Proposed KPIs and Alert System -->
+                <div class="upc-card space-y-4">
+                    <h3 class="text-md font-bold text-upc-dark border-b border-gray-100 pb-3 flex items-center gap-2">
+                        <span>🔔</span> Estructura de KPIs de Dashboard y Alertas Operativas
+                    </h3>
+
+                    <div class="space-y-3">
+                        <span class="text-xs text-gray-500 font-semibold block uppercase tracking-wider mb-2">Métricas
+                            clave a implementar en Dashboards en tiempo real:</span>
+
+                        <div class="grid grid-cols-2 gap-3 text-center">
+                            <div class="bg-gray-50 border border-gray-200 rounded-lg p-2.5">
+                                <span class="text-lg font-black text-upc-dark block" id="kpiLostEstimate">0</span>
+                                <span class="text-[10px] text-gray-500 font-bold block uppercase mt-0.5">Leads No
+                                    Recibidos (Est.)</span>
+                            </div>
+                            <div class="bg-gray-50 border border-gray-200 rounded-lg p-2.5">
+                                <span class="text-lg font-black text-upc-dark block" id="kpiMeanTimeToRepair">0m</span>
+                                <span class="text-[10px] text-gray-500 font-bold block uppercase mt-0.5">Duración
+                                    Promedio Caída</span>
+                            </div>
+                        </div>
+
+                        <div class="border-t border-gray-100 pt-3">
+                            <strong class="text-xs text-upc-dark block mb-2">Esquema de Alertas en Tiempo Real
+                                Propuesto:</strong>
+                            <ul class="text-[11px] text-gray-600 space-y-2 font-medium list-disc list-inside">
+                                <li><strong>Alerta Slack/Teams TI:</strong> Disparar webhook automatizado si transcurren
+                                    más de 10 minutos sin ningún registro en horarios operativos (8:00 AM - 10:00 PM).
+                                </li>
+                                <li><strong>Alerta E-mail Comercial:</strong> Reportar inmediatamente si la Continuidad
+                                    Operativa diaria disminuye por debajo del 95%.</li>
+                                <li><strong>Validación Diaria:</strong> Conciliación automática nocturna entre el
+                                    volumen de Chattigo Conversations y leads ingresados al CRM.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+    </div>
+
+    <!-- Main Logic Script -->
+    <script>
+        // Global State variables
+        let rawRecords = [];      // Raw rows from CSV/XLSX
+        let cleanRecords = [];    // Mapped, cleaned and timestamped rows
+        let sortedRecords = [];   // Chronologically sorted records
+        let incidentsList = [];   // Calculated gaps > 5 minutes
+        let filteredIncidents = []; // Incidents matching search / filters
+
+        let fileMetadata = {
+            fileName: "",
+            fileSize: 0,
+            mappedCols: {},
+            unmappedCols: []
+        };
+
+        // Quality Metrics
+        let qualityAudit = {
+            duplicates: 0,
+            invalids: 0,
+            missings: 0
+        };
+
+        // Pagination Configuration
+        const itemsPerPage = 10;
+        let currentPage = 1;
+
+        // ChartJS instances
+        let severityChartInstance = null;
+        let hourlyChartInstance = null;
+        let timelineChartInstance = null;
+
+        // Mappings defined in user request
+        const targetColumns = {
+            campana: "Campaña",
+            codigoPersona: "Código de Persona",
+            estado: "Estado",
+            fecha: "Fecha",
+            hora: "Hora",
+            periodo: "Periodo",
+            fuenteOrigen: "Fuente Origen",
+            unidadNegocio: "Unidad de Negocio",
+            direccion: "Dirección",
+            canal: "Canal",
+            segmento: "Segmento",
+            codCampana: "Cód de Campaña",
+            idChattigo: "ID Chattigo"
+        };
+
+        // Dict for cleaning and searching matches
+        const colMappingKeywords = {
+            "campana de referencia": "Campaña",
+            "campana": "Campaña",
+            "campaña de referencia": "Campaña",
+            "campaña": "Campaña",
+            "cod persona (contacto) (contacto)": "Código de Persona",
+            "cod persona": "Código de Persona",
+            "codigo de persona": "Código de Persona",
+            "codigo persona": "Código de Persona",
+            "cod. persona (contacto) (contacto)": "Código de Persona",
+            "sub estado": "Estado",
+            "estado": "Estado",
+            "fecha de creación": "Fecha",
+            "fecha de creacion": "Fecha",
+            "fecha": "Fecha",
+            "hora": "Hora",
+            "periodo (campaña de referencia) (campaña)": "Periodo",
+            "periodo (campana de referencia) (campana)": "Periodo",
+            "periodo": "Periodo",
+            "fuente de origen (referente a) (contacto)": "Fuente Origen",
+            "fuente de origen": "Fuente Origen",
+            "fuente origen": "Fuente Origen",
+            "unidad de negocio (campaña de referencia) (campaña)": "Unidad de Negocio",
+            "unidad de negocio (campana de referencia) (campana)": "Unidad de Negocio",
+            "unidad de negocio": "Unidad de Negocio",
+            "dirección": "Dirección",
+            "direccion": "Dirección",
+            "template data hsm": "Canal",
+            "canal": "Canal",
+            "segmento": "Segmento",
+            "código de campaña (campaña de referencia) (campaña)": "Cód de Campaña",
+            "codigo de campana (campana de referencia) (campana)": "Cód de Campaña",
+            "código de campaña": "Cód de Campaña",
+            "codigo de campana": "Cód de Campaña",
+            "cod de campaña": "Cód de Campaña",
+            "cod de campana": "Cód de Campaña",
+            "chattigo conversation id": "ID Chattigo",
+            "id chattigo": "ID Chattigo"
+        };
+
+        // Drag and drop event listeners
+        const dropZone = document.getElementById("dropZone");
+        const fileInput = document.getElementById("fileInput");
+
+        ["dragenter", "dragover"].forEach(eventName => {
+            dropZone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                dropZone.classList.add("drag-hover");
+            }, false);
+        });
+
+        ["dragleave", "drop"].forEach(eventName => {
+            dropZone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                dropZone.classList.remove("drag-hover");
+            }, false);
+        });
+
+        dropZone.addEventListener("drop", (e) => {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            if (files.length > 0) {
+                fileInput.files = files;
+                handleFileLoad(files[0]);
+            }
+        });
+
+        fileInput.addEventListener("change", (e) => {
+            if (e.target.files.length > 0) {
+                handleFileLoad(e.target.files[0]);
+            }
+        });
+
+        // Search and Filter Listeners
+        document.getElementById("tableSearch").addEventListener("input", filterAndRenderTable);
+        document.getElementById("severityFilter").addEventListener("change", filterAndRenderTable);
+
+        // Toggle Modal helper
+        function toggleModal(id, show) {
+            const modal = document.getElementById(id);
+            if (show) {
+                modal.classList.remove("hidden");
+            } else {
+                modal.classList.add("hidden");
+            }
+        }
+
+        // Switch Tabs helper
+        function switchTab(showId, hideId, activeBtn) {
+            document.getElementById(showId).classList.remove("hidden");
+            document.getElementById(hideId).classList.add("hidden");
+
+            const btns = activeBtn.parentNode.querySelectorAll(".tab-btn");
+            btns.forEach(btn => btn.classList.remove("active", "text-upc-red"));
+            activeBtn.classList.add("active", "text-upc-red");
+        }
+
+        // File processing orchestrator
+        function handleFileLoad(file) {
+            showLoading(true);
+
+            fileMetadata.fileName = file.name;
+            fileMetadata.fileSize = file.size;
+
+            setTimeout(() => {
+                const reader = new FileReader();
+
+                if (file.name.endsWith(".csv")) {
+                    reader.onload = function (e) {
+                        const buffer = e.target.result;
+                        // Sniff encoding: try UTF-8 first, fallback to Windows-1252 if corrupted chars are found
+                        let decoder = new TextDecoder("utf-8");
+                        let text = decoder.decode(buffer);
+
+                        if (text.includes("") || text.includes("\uFFFD")) {
+                            decoder = new TextDecoder("windows-1252");
+                            text = decoder.decode(buffer);
+                        }
+
+                        Papa.parse(text, {
+                            header: true,
+                            skipEmptyLines: true,
+                            complete: function (results) {
+                                rawRecords = results.data;
+                                processRecords();
+                            },
+                            error: function (err) {
+                                alert("Error al leer el archivo CSV: " + err.message);
+                                showLoading(false);
+                            }
+                        });
+                    };
+                    reader.readAsArrayBuffer(file);
+                } else if (file.name.endsWith(".xlsx") || file.name.endsWith(".xls")) {
+                    reader.onload = function (e) {
+                        try {
+                            const data = new Uint8Array(e.target.result);
+                            const workbook = XLSX.read(data, { type: 'array', cellDates: true, dateNF: 'YYYY-MM-DD HH:mm:ss' });
+                            const firstSheetName = workbook.SheetNames[0];
+                            const worksheet = workbook.Sheets[firstSheetName];
+                            rawRecords = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+                            processRecords();
+                        } catch (err) {
+                            alert("Error al leer el archivo de Excel: " + err.message);
+                            showLoading(false);
+                        }
+                    };
+                    reader.readAsArrayBuffer(file);
+                } else {
+                    alert("Por favor, cargue un archivo con formato válido (.xlsx, .xls o .csv).");
+                    showLoading(false);
+                }
+            }, 100);
+        }
+
+        function showLoading(show) {
+            const overlay = document.getElementById("loadingOverlay");
+            if (show) {
+                overlay.classList.remove("hidden");
+                overlay.classList.add("flex");
+            } else {
+                overlay.classList.add("hidden");
+                overlay.classList.remove("flex");
+            }
+        }
+
+        // Clean keys to support flexible matching
+        function getNormalizedKeyword(key) {
+            return key.toString()
+                .toLowerCase()
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "")
+                .replace(/[^a-z0-9\s()]/g, "")
+                .trim();
+        }
+
+        // Excel serial date reader helper
+        function excelSerialToDate(serial) {
+            const utc_days = Math.floor(serial - 25569);
+            const utc_value = utc_days * 86400;
+            const date_info = new Date(utc_value * 1000);
+            const fractional_day = serial - Math.floor(serial) + 0.0000001;
+            let total_seconds = Math.floor(86400 * fractional_day);
+            const seconds = total_seconds % 60;
+            total_seconds -= seconds;
+            const minutes = Math.floor(total_seconds / 60) % 60;
+            const hours = Math.floor(total_seconds / 3600);
+
+            // Adjust day shifts and build final Date in local TZ
+            return new Date(date_info.getFullYear(), date_info.getMonth(), date_info.getDate(), hours, minutes, seconds);
+        }
+
+        // Apply string time (HH:MM:SS) or Date or Excel fraction to a Javascript Date object
+        function applyTimeToDate(dateObj, timeVal) {
+            if (timeVal === undefined || timeVal === null || timeVal === "") return;
+
+            let hours = 0, minutes = 0, seconds = 0;
+
+            if (timeVal instanceof Date) {
+                // If it's a Date object, extract local time components
+                hours = timeVal.getHours();
+                minutes = timeVal.getMinutes();
+                seconds = timeVal.getSeconds();
+                dateObj.setHours(hours, minutes, seconds, 0);
+                return;
+            }
+
+            // If it's a number (fraction of a day from Excel)
+            if (typeof timeVal === 'number' || (!isNaN(timeVal) && !isNaN(parseFloat(timeVal)) && !timeVal.toString().includes(":"))) {
+                let num = parseFloat(timeVal);
+                if (num >= 0 && num < 1) {
+                    let total_seconds = Math.round(num * 86400);
+                    hours = Math.floor(total_seconds / 3600);
+                    minutes = Math.floor((total_seconds % 3600) / 60);
+                    seconds = total_seconds % 60;
+                    dateObj.setHours(hours, minutes, seconds, 0);
+                    return;
+                }
+            }
+
+            // Otherwise parse as string
+            let timeStr = timeVal.toString().trim();
+            let isPM = timeStr.toLowerCase().includes("pm");
+            let isAM = timeStr.toLowerCase().includes("am");
+
+            // If it's a full Date string (e.g. "Sun Dec 31 1899 17:18:41 GMT...")
+            if (timeStr.includes(" ") && timeStr.includes(":") && isNaN(timeStr.split(":")[0])) {
+                let parsedDate = new Date(timeStr);
+                if (!isNaN(parsedDate.getTime())) {
+                    hours = parsedDate.getHours();
+                    minutes = parsedDate.getMinutes();
+                    seconds = parsedDate.getSeconds();
+                    dateObj.setHours(hours, minutes, seconds, 0);
+                    return;
+                }
+            }
+
+            // Normal time string parsing "HH:MM:SS" or "HH:MM"
+            let cleanTime = timeStr.replace(/(am|pm)/gi, "").trim();
+            let timeParts = cleanTime.split(":");
+            if (timeParts.length >= 2) {
+                hours = parseInt(timeParts[0], 10);
+                minutes = parseInt(timeParts[1], 10);
+                if (timeParts.length >= 3) {
+                    seconds = parseInt(timeParts[2], 10);
+                }
+                if (isPM && hours < 12) hours += 12;
+                if (isAM && hours === 12) hours = 0;
+
+                // Validate parsed numbers
+                if (!isNaN(hours) && !isNaN(minutes)) {
+                    dateObj.setHours(hours, minutes, isNaN(seconds) ? 0 : seconds, 0);
+                }
+            }
+        }
+
+        // Robust date/hour parsing
+        function parseDateTime(dateVal, timeVal) {
+            if (!dateVal) return null;
+
+            // Case 1: Already parsed Date object (SheetJS sometimes does this)
+            if (dateVal instanceof Date && !isNaN(dateVal.getTime())) {
+                let d = new Date(dateVal);
+                if (timeVal !== undefined && timeVal !== null && timeVal !== "") {
+                    applyTimeToDate(d, timeVal);
+                }
+                return d;
+            }
+
+            let dateStr = dateVal.toString().trim();
+
+            // Case 2: Excel serial float number
+            if (!isNaN(dateStr) && parseFloat(dateStr) > 40000 && parseFloat(dateStr) < 60000) {
+                let d = excelSerialToDate(parseFloat(dateStr));
+                if (timeVal !== undefined && timeVal !== null && timeVal !== "") {
+                    applyTimeToDate(d, timeVal);
+                }
+                return d;
+            }
+
+            // Case 3: Parse standard formats (DD/MM/YYYY, YYYY-MM-DD)
+            let day, month, year;
+            let parts = dateStr.split(/[-/ :]/);
+
+            // If the date string has standard structure
+            if (parts.length >= 3) {
+                if (parts[0].length === 4) { // YYYY-MM-DD
+                    year = parseInt(parts[0], 10);
+                    month = parseInt(parts[1], 10);
+                    day = parseInt(parts[2], 10);
+                } else { // DD/MM/YYYY
+                    day = parseInt(parts[0], 10);
+                    month = parseInt(parts[1], 10);
+                    year = parseInt(parts[2], 10);
+
+                    // Peruvian standard validation: swap month and day if month is impossible (>12)
+                    if (month > 12 && day <= 12) {
+                        let temp = day;
+                        day = month;
+                        month = temp;
+                    }
+                }
+            } else {
+                // Fallback direct parsing
+                let parsed = new Date(dateStr);
+                if (!isNaN(parsed.getTime())) {
+                    if (timeVal !== undefined && timeVal !== null && timeVal !== "") {
+                        applyTimeToDate(parsed, timeVal);
+                    }
+                    return parsed;
+                }
+                return null;
+            }
+
+            let finalDate = new Date(year, month - 1, day, 0, 0, 0, 0);
+            if (timeVal !== undefined && timeVal !== null && timeVal !== "") {
+                applyTimeToDate(finalDate, timeVal);
+            }
+            return isNaN(finalDate.getTime()) ? null : finalDate;
+        }
+
+        // Principal calculations and mapping engine
+        function processRecords() {
+            if (rawRecords.length === 0) {
+                alert("El archivo cargado está vacío.");
+                showLoading(false);
+                return;
+            }
+
+            // 1. Detect headers and create column mappings
+            const sampleRow = rawRecords[0];
+            const originalHeaders = Object.keys(sampleRow);
+
+            fileMetadata.mappedCols = {};
+            fileMetadata.unmappedCols = [];
+
+            // Map keys
+            const mappedKeysDict = {}; // Maps lowercase keywords to original header
+            originalHeaders.forEach(header => {
+                let norm = getNormalizedKeyword(header);
+                if (colMappingKeywords[norm]) {
+                    let mappedName = colMappingKeywords[norm];
+                    fileMetadata.mappedCols[mappedName] = header;
+                    mappedKeysDict[mappedName] = header;
+                } else {
+                    fileMetadata.unmappedCols.push(header);
+                }
+            });
+
+            // 2. Perform cleaning, mapping, and audit checks
+            cleanRecords = [];
+            qualityAudit = { duplicates: 0, invalids: 0, missings: 0 };
+
+            // Track duplicates using unique keys (PersonId + FullTimestamp string)
+            const uniquenessSet = new Set();
+
+            rawRecords.forEach((row, idx) => {
+                let cleanRow = {};
+
+                // Read each field using the mapping dictionary
+                Object.keys(targetColumns).forEach(prop => {
+                    let targetName = targetColumns[prop];
+                    let origHeader = mappedKeysDict[targetName];
+                    cleanRow[targetName] = origHeader ? row[origHeader] : "";
+                });
+
+                // Count missing critical fields (Código de Persona, Fecha, Hora)
+                if (!cleanRow["Código de Persona"] || !cleanRow["Fecha"]) {
+                    qualityAudit.missings++;
+                }
+
+                // Try to build a valid complete timestamp
+                let timestamp = parseDateTime(cleanRow["Fecha"], cleanRow["Hora"]);
+
+                if (timestamp) {
+                    cleanRow["_timestamp"] = timestamp;
+
+                    // Duplicate check
+                    let uniqKey = `${cleanRow["Código de Persona"]}_${timestamp.getTime()}`;
+                    if (uniquenessSet.has(uniqKey)) {
+                        qualityAudit.duplicates++;
+                    } else {
+                        uniquenessSet.add(uniqKey);
+                        cleanRecords.push(cleanRow); // Avoid adding duplicates to clean list
+                    }
+                } else {
+                    qualityAudit.invalids++;
+                }
+            });
+
+            // 3. Chronological sorting
+            sortedRecords = [...cleanRecords].sort((a, b) => a["_timestamp"] - b["_timestamp"]);
+
+            // 4. Calculate gaps and build incident list
+            incidentsList = [];
+            let totalGapsSum = 0;
+            let maxGapMinutes = 0;
+            let maxGapStart = null;
+            let maxGapEnd = null;
+            let maxGapStartLead = "";
+            let maxGapEndLead = "";
+
+            for (let i = 1; i < sortedRecords.length; i++) {
+                let prev = sortedRecords[i - 1];
+                let curr = sortedRecords[i];
+
+                let diffMs = curr["_timestamp"] - prev["_timestamp"];
+                let diffMin = diffMs / (1000 * 60);
+
+                if (diffMin >= 0) {
+                    totalGapsSum += diffMin;
+
+                    // Outage trigger rule: > 5 minutes
+                    if (diffMin > 5) {
+                        let severity = "Baja";
+                        if (diffMin > 40) severity = "Crítica";
+                        else if (diffMin > 20) severity = "Alta";
+                        else if (diffMin > 10) severity = "Media";
+
+                        incidentsList.push({
+                            id: incidentsList.length + 1,
+                            prevLead: prev["Código de Persona"] || "N/D",
+                            currLead: curr["Código de Persona"] || "N/D",
+                            startTime: prev["_timestamp"],
+                            endTime: curr["_timestamp"],
+                            duration: diffMin,
+                            severity: severity
+                        });
+
+                        // Max gap track
+                        if (diffMin > maxGapMinutes) {
+                            maxGapMinutes = diffMin;
+                            maxGapStart = prev["_timestamp"];
+                            maxGapEnd = curr["_timestamp"];
+                            maxGapStartLead = prev["Código de Persona"];
+                            maxGapEndLead = curr["Código de Persona"];
+                        }
+                    }
+                }
+            }
+
+            // 5. Compute operational continuity %
+            let continuityPercentage = 100;
+            let totalPeriodTimeMs = 0;
+            let totalOutageDurationMin = incidentsList.reduce((sum, item) => sum + item.duration, 0);
+
+            if (sortedRecords.length > 1) {
+                totalPeriodTimeMs = sortedRecords[sortedRecords.length - 1]["_timestamp"] - sortedRecords[0]["_timestamp"];
+                let totalPeriodTimeMin = totalPeriodTimeMs / (1000 * 60);
+
+                if (totalPeriodTimeMin > 0) {
+                    continuityPercentage = (1 - (totalOutageDurationMin / totalPeriodTimeMin)) * 100;
+                    if (continuityPercentage < 0) continuityPercentage = 0;
+                }
+            }
+
+            // 6. Average gap
+            let avgGapMin = sortedRecords.length > 1 ? (totalGapsSum / (sortedRecords.length - 1)) : 0;
+
+            // 7. Update UI elements
+            updateMappingBadges();
+            updateQualityAuditDOM();
+            updateKPIDOM(sortedRecords.length, incidentsList.length, maxGapMinutes, maxGapStart, maxGapEnd, avgGapMin, continuityPercentage);
+
+            // Dynamic text summaries for Business and IT
+            generateDynamicSummaries(continuityPercentage, incidentsList, maxGapMinutes, avgGapMin, sortedRecords);
+
+            // Render Charts
+            renderCharts(incidentsList, sortedRecords);
+
+            // Populate Table
+            currentPage = 1;
+            filterAndRenderTable();
+
+            // Enable PDF Export button
+            document.getElementById("pdfBtn").disabled = false;
+
+            // Show Dashboard
+            document.getElementById("columnMappingSection").classList.remove("hidden");
+            document.getElementById("analyticsDashboard").classList.remove("hidden");
+
+            showLoading(false);
+        }
+
+        // Render Column Mapping states in UI
+        function updateMappingBadges() {
+            const container = document.getElementById("mappingBadgesContainer");
+            container.innerHTML = "";
+
+            Object.keys(targetColumns).forEach(prop => {
+                let friendlyName = targetColumns[prop];
+                let isMapped = fileMetadata.mappedCols[friendlyName] !== undefined;
+
+                let badgeClass = isMapped
+                    ? "bg-green-50 border-green-200 text-green-700"
+                    : "bg-red-50 border-red-200 text-red-700";
+
+                let icon = isMapped ? "✅" : "❌";
+                let matchedText = isMapped
+                    ? `<span class="text-[10px] text-gray-500 font-normal block truncate" title="${fileMetadata.mappedCols[friendlyName]}">Original: ${fileMetadata.mappedCols[friendlyName]}</span>`
+                    : '<span class="text-[10px] text-red-400 font-normal block">Falta en archivo</span>';
+
+                container.innerHTML += `
+                    <div class="border rounded-lg p-2.5 flex flex-col justify-between ${badgeClass} text-xs font-bold shadow-sm">
+                        <span class="flex items-center justify-between">
+                            <span>${friendlyName}</span>
+                            <span>${icon}</span>
+                        </span>
+                        ${matchedText}
+                    </div>
+                `;
+            });
+        }
+
+        // Update Audit panel DOM
+        function updateQualityAuditDOM() {
+            document.getElementById("auditDuplicates").innerText = qualityAudit.duplicates;
+            document.getElementById("auditInvalids").innerText = qualityAudit.invalids;
+            document.getElementById("auditMissings").innerText = qualityAudit.missings;
+        }
+
+        // Update KPI Cards DOM
+        function formatDuration(minutes) {
+            if (minutes === 0) return "-";
+            if (minutes < 60) return `${Math.round(minutes)} min`;
+            let hrs = Math.floor(minutes / 60);
+            let mins = Math.round(minutes % 60);
+            return mins > 0 ? `${hrs}h ${mins}m` : `${hrs}h`;
+        }
+
+        function updateKPIDOM(totalLeads, totalOutages, maxGap, maxGapStart, maxGapEnd, avgGap, continuity) {
+            document.getElementById("kpiLeads").innerText = totalLeads.toLocaleString();
+            document.getElementById("kpiOutages").innerText = totalOutages.toLocaleString();
+            document.getElementById("kpiMaxGap").innerText = formatDuration(maxGap);
+
+            if (maxGapStart && maxGapEnd) {
+                let startStr = maxGapStart.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                let endStr = maxGapEnd.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                let dateStr = maxGapStart.toLocaleDateString([], { day: '2-digit', month: 'short' });
+                document.getElementById("kpiMaxGapDates").innerText = `${dateStr} (${startStr} - ${endStr})`;
+            } else {
+                document.getElementById("kpiMaxGapDates").innerText = "Sin incidencias registradas";
+            }
+
+            document.getElementById("kpiAvgGap").innerText = avgGap < 1
+                ? `${Math.round(avgGap * 60)} seg`
+                : `${avgGap.toFixed(1)} min`;
+
+            const continuityEl = document.getElementById("kpiContinuity");
+            const continuityCard = document.getElementById("kpiContinuityCard");
+            continuityEl.innerText = `${continuity.toFixed(2)}%`;
+
+            // Adjust card classes according to continuity health
+            continuityCard.className = "upc-card flex flex-col justify-between border-l-4";
+            if (continuity >= 98) {
+                continuityCard.classList.add("border-l-green-600");
+                continuityEl.className = "text-3xl font-extrabold text-green-600 mt-2 block";
+            } else if (continuity >= 95) {
+                continuityCard.classList.add("border-l-amber-500");
+                continuityEl.className = "text-3xl font-extrabold text-amber-600 mt-2 block";
+            } else {
+                continuityCard.classList.add("border-l-upc-red");
+                continuityEl.className = "text-3xl font-extrabold text-upc-red mt-2 block";
+            }
+
+            // Estimate lost leads (Lost Leads = Average leads per min during uptime * Total minutes of outage)
+            let totalPeriodMin = sortedRecords.length > 1
+                ? (sortedRecords[sortedRecords.length - 1]["_timestamp"] - sortedRecords[0]["_timestamp"]) / (1000 * 60)
+                : 0;
+            let activeTimeMin = totalPeriodMin - incidentsList.reduce((sum, item) => sum + item.duration, 0);
+
+            let rateLeadsPerMin = activeTimeMin > 0 ? (totalLeads / activeTimeMin) : 0;
+            let totalOutageDurationMin = incidentsList.reduce((sum, item) => sum + item.duration, 0);
+            let estimatedLostLeads = Math.round(rateLeadsPerMin * totalOutageDurationMin);
+
+            document.getElementById("kpiLostEstimate").innerText = estimatedLostLeads.toLocaleString();
+
+            // Average Time to Repair (MTTR)
+            let mttr = totalOutages > 0 ? (totalOutageDurationMin / totalOutages) : 0;
+            document.getElementById("kpiMeanTimeToRepair").innerText = formatDuration(mttr);
+        }
+
+        // Generate customized executive text summaries dynamically
+        function generateDynamicSummaries(continuity, outages, maxGap, avgGap, records) {
+            let totalOutageMin = outages.reduce((sum, i) => sum + i.duration, 0);
+            let firstDate = records[0]["_timestamp"].toLocaleDateString();
+            let lastDate = records[records.length - 1]["_timestamp"].toLocaleDateString();
+
+            // 1. Business summary
+            let busText = `Durante el periodo analizado (del <strong>${firstDate}</strong> al <strong>${lastDate}</strong>), se registró un total de <strong>${records.length.toLocaleString()} leads</strong> procesados en el CRM.`;
+
+            if (outages.length > 0) {
+                let criticalCount = outages.filter(o => o.severity === "Crítica").length;
+                let highCount = outages.filter(o => o.severity === "Alta").length;
+
+                busText += ` El sistema de detección identificó <strong>${outages.length} intermitencias operacionales</strong> (gaps mayores a 5 minutos) que acumulan un total de <strong>${formatDuration(totalOutageMin)}</strong> sin ingreso de leads. Esto resulta en una <strong>Continuidad Operativa del ${continuity.toFixed(2)}%</strong>.`;
+
+                if (criticalCount > 0 || highCount > 0) {
+                    busText += ` Se identificaron <strong>${criticalCount} caídas críticas</strong> y <strong>${highCount} caídas de severidad alta</strong> en las que el CRM estuvo inactivo por largos tramos. Se estima que este congelamiento del flujo retrasó de forma importante la tasa de contacto de los equipos comerciales, afectando los SLAs institucionales de atención al prospecto.`;
+                } else {
+                    busText += ` Aunque se detectaron intermitencias, todas correspondieron a severidades menores (Baja o Media), lo que sugiere retrasos menores en la cola de procesamiento o microcortes de sincronización.`;
+                }
+            } else {
+                busText += ` <strong>Felicidades.</strong> No se detectó ninguna intermitencia mayor a 5 minutos en el flujo cronológico. El CRM ha mostrado una tasa de ingesta estable y continua con un <strong>100% de Continuidad Operativa</strong>.`;
+            }
+            document.getElementById("businessSummaryText").innerHTML = busText;
+
+            // 2. IT summary
+            let techText = `El análisis técnico de ingesta de datos evaluó el orden secuencial de los registros. El tiempo de respuesta promedio (frecuencia de llegada) entre leads activos fue de <strong>${avgGap < 1 ? Math.round(avgGap * 60) + " segundos" : avgGap.toFixed(1) + " minutos"}</strong>.`;
+
+            if (outages.length > 0) {
+                // Find hour with most outages
+                let hourCounts = Array(24).fill(0);
+                outages.forEach(o => {
+                    let hr = new Date(o.startTime).getHours();
+                    hourCounts[hr]++;
+                });
+                let peakHour = hourCounts.indexOf(Math.max(...hourCounts));
+                let peakHourCount = hourCounts[peakHour];
+
+                techText += ` Se identificó que el CRM sufrió su brecha operativa máxima de <strong>${formatDuration(maxGap)}</strong>. `;
+
+                if (peakHourCount > 0) {
+                    techText += `Los incidentes operacionales muestran una mayor frecuencia a las <strong>${peakHour}:00 horas</strong> (registrando ${peakHourCount} incidentes). Esta concentración horaria apunta fuertemente a picos de carga en el servidor web de APIs del CRM o cuellos de botella en la sincronización de webhooks en la base de datos de destino.`;
+                }
+
+                if (qualityAudit.duplicates > 0 || qualityAudit.invalids > 0) {
+                    techText += `<br><br><strong>Recomendación de Calidad de Datos:</strong> Se detectaron <strong>${qualityAudit.duplicates} duplicados</strong> de leads con idéntico timestamp y <strong>${qualityAudit.invalids} registros temporales inválidos</strong>. Esto indica la necesidad de revisar los scripts de deduplicación en el webhook de origen para evitar saturación inútil del pipeline del CRM.`;
+                }
+            } else {
+                techText += ` La frecuencia de entrada es constante y no presenta anomalías ni concentraciones inusuales de demoras. Los logs de auditoría de ingesta están completamente limpios.`;
+            }
+            document.getElementById("techSummaryText").innerHTML = techText;
+        }
+
+        // Render charts using ChartJS
+        function renderCharts(incidents, records) {
+            // Destroy previous instances to avoid overlay rendering bugs
+            if (severityChartInstance) severityChartInstance.destroy();
+            if (hourlyChartInstance) hourlyChartInstance.destroy();
+            if (timelineChartInstance) timelineChartInstance.destroy();
+
+            // 1. Severity Chart (Doughnut)
+            let counts = { Baja: 0, Media: 0, Alta: 0, Crítica: 0 };
+            incidents.forEach(i => counts[i.severity]++);
+
+            const ctxSev = document.getElementById("severityChart").getContext("2d");
+            severityChartInstance = new Chart(ctxSev, {
+                type: "doughnut",
+                data: {
+                    labels: ["Baja (5-10m)", "Media (10-20m)", "Alta (20-40m)", "Crítica (>40m)"],
+                    datasets: [{
+                        data: [counts.Baja, counts.Media, counts.Alta, counts.Crítica],
+                        backgroundColor: ["#FBBF24", "#F97316", "#EF4444", "#7F1D1D"],
+                        borderWidth: 1,
+                        borderColor: "#ffffff"
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: "bottom",
+                            labels: {
+                                font: { family: "Inter", size: 10, weight: "bold" },
+                                boxWidth: 12
+                            }
+                        }
+                    },
+                    cutout: "60%"
+                }
+            });
+
+            // 2. Hourly concentration Chart (Bar)
+            let hourCounts = Array(24).fill(0);
+            incidents.forEach(i => {
+                let hr = new Date(i.startTime).getHours();
+                hourCounts[hr]++;
+            });
+
+            const ctxHr = document.getElementById("hourlyChart").getContext("2d");
+            hourlyChartInstance = new Chart(ctxHr, {
+                type: "bar",
+                data: {
+                    labels: Array.from({ length: 24 }, (_, i) => `${i}h`),
+                    datasets: [{
+                        label: "N° de Incidentes",
+                        data: hourCounts,
+                        backgroundColor: "#D50000",
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: "#F3F4F6" },
+                            ticks: { font: { family: "Inter", size: 9 } }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { font: { family: "Inter", size: 9 } }
+                        }
+                    }
+                }
+            });
+
+            // 3. Timeline Chart (Line representation of volume and incident areas)
+            // Group records and incidents by date
+            let dateMap = {};
+            records.forEach(r => {
+                let dateStr = r["_timestamp"].toLocaleDateString([], { day: '2-digit', month: 'short' });
+                if (!dateMap[dateStr]) dateMap[dateStr] = { leads: 0, incidents: 0 };
+                dateMap[dateStr].leads++;
+            });
+            incidents.forEach(i => {
+                let dateStr = new Date(i.startTime).toLocaleDateString([], { day: '2-digit', month: 'short' });
+                if (dateMap[dateStr]) dateMap[dateStr].incidents++;
+            });
+
+            let labelsTimeline = Object.keys(dateMap);
+            let leadsTimeline = labelsTimeline.map(k => dateMap[k].leads);
+            let incsTimeline = labelsTimeline.map(k => dateMap[k].incidents);
+
+            const ctxLine = document.getElementById("timelineChart").getContext("2d");
+            timelineChartInstance = new Chart(ctxLine, {
+                type: "line",
+                data: {
+                    labels: labelsTimeline,
+                    datasets: [
+                        {
+                            label: "Leads Totales",
+                            data: leadsTimeline,
+                            borderColor: "#333333",
+                            backgroundColor: "rgba(51, 51, 51, 0.05)",
+                            borderWidth: 2,
+                            yAxisID: "y",
+                            tension: 0.1,
+                            fill: true
+                        },
+                        {
+                            label: "Incidentes",
+                            data: incsTimeline,
+                            borderColor: "#D50000",
+                            backgroundColor: "rgba(213, 0, 0, 0.1)",
+                            borderWidth: 2,
+                            yAxisID: "y1",
+                            tension: 0.1,
+                            fill: true
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: "top",
+                            labels: { font: { family: "Inter", size: 10 } }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            type: "linear",
+                            display: true,
+                            position: "left",
+                            grid: { color: "#F3F4F6" },
+                            ticks: { font: { family: "Inter", size: 9 } },
+                            title: { display: true, text: "Leads", font: { family: "Inter", size: 10, weight: "bold" } }
+                        },
+                        y1: {
+                            type: "linear",
+                            display: true,
+                            position: "right",
+                            grid: { display: false },
+                            ticks: { font: { family: "Inter", size: 9 } },
+                            title: { display: true, text: "Incidentes", font: { family: "Inter", size: 10, weight: "bold" } }
+                        },
+                        x: {
+                            ticks: { font: { family: "Inter", size: 9 } }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Paged, searchable, and filterable table engine
+        function filterAndRenderTable() {
+            const query = document.getElementById("tableSearch").value.toLowerCase().trim();
+            const severityFilter = document.getElementById("severityFilter").value;
+
+            filteredIncidents = incidentsList.filter(item => {
+                let matchesSearch = !query ||
+                    item.prevLead.toLowerCase().includes(query) ||
+                    item.currLead.toLowerCase().includes(query);
+
+                let matchesSeverity = severityFilter === "ALL" || item.severity === severityFilter;
+
+                return matchesSearch && matchesSeverity;
+            });
+
+            // Recalculate pagination boundaries
+            currentPage = 1;
+            renderTablePage();
+        }
+
+        function renderTablePage() {
+            const tbody = document.getElementById("incidentsTableBody");
+            tbody.innerHTML = "";
+
+            const total = filteredIncidents.length;
+            const startIdx = (currentPage - 1) * itemsPerPage;
+            const endIdx = Math.min(startIdx + itemsPerPage, total);
+
+            if (total === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="px-4 py-8 text-center text-gray-400 font-semibold italic">
+                            No se encontraron incidentes con los filtros seleccionados.
+                        </td>
+                    </tr>
+                `;
+                document.getElementById("tablePaginationInfo").innerText = "Mostrando 0 a 0 de 0 incidentes";
+                document.getElementById("prevPageBtn").disabled = true;
+                document.getElementById("nextPageBtn").disabled = true;
+                return;
+            }
+
+            for (let i = startIdx; i < endIdx; i++) {
+                let item = filteredIncidents[i];
+                let startStr = item.startTime.toLocaleDateString() + " " + item.startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                let endStr = item.endTime.toLocaleDateString() + " " + item.endTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+                let badgeClass = "badge-baja";
+                if (item.severity === "Crítica") badgeClass = "badge-critica";
+                else if (item.severity === "Alta") badgeClass = "badge-alta";
+                else if (item.severity === "Media") badgeClass = "badge-media";
+
+                tbody.innerHTML += `
+                    <tr class="hover:bg-gray-50 transition-colors">
+                        <td class="px-4 py-3 font-semibold text-gray-800">${item.id}</td>
+                        <td class="px-4 py-3 text-gray-700 select-all font-mono" title="Copiar">${item.prevLead}</td>
+                        <td class="px-4 py-3 text-gray-700 select-all font-mono" title="Copiar">${item.currLead}</td>
+                        <td class="px-4 py-3 text-gray-500">${startStr}</td>
+                        <td class="px-4 py-3 text-gray-500">${endStr}</td>
+                        <td class="px-4 py-3 font-semibold text-upc-dark">${item.duration.toFixed(1)} min</td>
+                        <td class="px-4 py-3 text-center">
+                            <span class="badge ${badgeClass}">${item.severity}</span>
+                        </td>
+                    </tr>
+                `;
+            }
+
+            document.getElementById("tablePaginationInfo").innerText = `Mostrando ${startIdx + 1} a ${endIdx} de ${total} incidentes`;
+            document.getElementById("prevPageBtn").disabled = currentPage === 1;
+            document.getElementById("nextPageBtn").disabled = endIdx === total;
+        }
+
+        function changePage(direction) {
+            currentPage += direction;
+            renderTablePage();
+        }
+
+        // Export Report to PDF in A4 Vertical layout
+        function exportReportPDF() {
+            const element = document.getElementById("captureArea");
+
+            // Save state of elements to avoid visual glitching on screen
+            const originalWidth = element.style.width;
+            const originalMaxWidth = element.style.maxWidth;
+            const originalPadding = element.style.padding;
+            const originalBg = document.body.style.backgroundColor;
+
+            // Apply export configurations programmatically
+            element.classList.add("export-pdf-mode");
+            document.body.style.backgroundColor = "white";
+
+            const opt = {
+                margin: [10, 10, 10, 10], // Margin in mm (1cm)
+                filename: `Reporte_Intermitencias_CRM_UPC_${new Date().toISOString().slice(0, 10)}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, useCORS: true, letterRendering: true },
+                pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            // Run PDF generation
+            html2pdf().from(element).set(opt).save().then(() => {
+                // Restore layout configuration
+                element.classList.remove("export-pdf-mode");
+                document.body.style.backgroundColor = originalBg;
+            }).catch(err => {
+                alert("Error al generar PDF: " + err.message);
+                element.classList.remove("export-pdf-mode");
+                document.body.style.backgroundColor = originalBg;
+            });
+        }
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,146 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+:root {
+    --upc-red: #D50000;
+    --upc-red-hover: #B70000;
+    --upc-red-light: #FEE2E2;
+    --upc-dark: #1A1A1A;
+    --upc-gray-dark: #333333;
+    --upc-gray: #6B7280;
+    --upc-gray-light: #F3F4F6;
+    --upc-border: #E5E7EB;
+    
+    /* Severity Colors */
+    --sev-baja: #FBBF24;
+    --sev-baja-bg: #FEF3C7;
+    --sev-baja-text: #92400E;
+    
+    --sev-media: #F97316;
+    --sev-media-bg: #FFEDD5;
+    --sev-media-text: #9A3412;
+    
+    --sev-alta: #EF4444;
+    --sev-alta-bg: #FEE2E2;
+    --sev-alta-text: #991B1B;
+    
+    --sev-critica: #7F1D1D;
+    --sev-critica-bg: #FEE2E2;
+    --sev-critica-text: #FFFFFF;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: #F8FAFC;
+    color: var(--upc-dark);
+}
+
+/* Custom Card Layouts */
+.upc-card {
+    background: white;
+    border-radius: 12px;
+    border: 1px solid var(--upc-border);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02), 0 1px 2px rgba(0, 0, 0, 0.04);
+    padding: 1.5rem;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.upc-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.04), 0 4px 6px -2px rgba(0, 0, 0, 0.02);
+}
+
+/* Severity Badges */
+.badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.badge-baja {
+    background-color: var(--sev-baja-bg);
+    color: var(--sev-baja-text);
+    border: 1px solid rgba(251, 191, 36, 0.3);
+}
+
+.badge-media {
+    background-color: var(--sev-media-bg);
+    color: var(--sev-media-text);
+    border: 1px solid rgba(249, 115, 22, 0.3);
+}
+
+.badge-alta {
+    background-color: var(--sev-alta-bg);
+    color: var(--sev-alta-text);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.badge-critica {
+    background-color: var(--upc-red);
+    color: white;
+    border: 1px solid var(--upc-red-hover);
+}
+
+/* Tab Headers and Interactions */
+.tab-btn {
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s ease;
+}
+
+.tab-btn.active {
+    border-color: var(--upc-red);
+    color: var(--upc-red);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+::-webkit-scrollbar-thumb {
+    background: #CBD5E1;
+    border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: #94A3B8;
+}
+
+/* A4 Portrait Mode overrides for PDF Export */
+.export-pdf-mode {
+    width: 800px !important;
+    max-width: 800px !important;
+    background: white !important;
+    padding: 20px !important;
+}
+
+.export-pdf-mode .upc-card {
+    box-shadow: none !important;
+    border: 1px solid #D1D5DB !important;
+    transform: none !important;
+    page-break-inside: avoid !important;
+}
+
+.export-pdf-mode .no-export {
+    display: none !important;
+}
+
+.export-pdf-mode table {
+    font-size: 11px !important;
+}
+
+.export-pdf-mode th, .export-pdf-mode td {
+    padding: 6px 8px !important;
+}
+
+/* Smooth drag and drop overlay */
+.drag-hover {
+    border-color: var(--upc-red) !important;
+    background-color: rgba(213, 0, 0, 0.05) !important;
+}
