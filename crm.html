@@ -422,15 +422,15 @@
                 <div class="overflow-x-auto rounded-lg border border-gray-200 bg-white">
                     <table class="min-w-full text-xs text-left text-gray-600">
                         <thead
-                            class="bg-gray-50 text-gray-500 uppercase tracking-wider font-semibold border-b border-gray-200">
+                            class="bg-gray-50 text-gray-500 uppercase tracking-wider font-semibold border-b border-gray-200 select-none">
                             <tr>
-                                <th class="px-4 py-3 font-semibold">Falla N°</th>
-                                <th class="px-4 py-3 font-semibold">Lead Anterior (Cód.)</th>
-                                <th class="px-4 py-3 font-semibold">Lead Siguiente (Cód.)</th>
-                                <th class="px-4 py-3 font-semibold">Inicio Intermitencia</th>
-                                <th class="px-4 py-3 font-semibold">Fin Intermitencia</th>
-                                <th class="px-4 py-3 font-semibold">Duración (Minutos)</th>
-                                <th class="px-4 py-3 font-semibold text-center">Severidad</th>
+                                <th class="px-4 py-3 font-semibold cursor-pointer hover:bg-gray-100 transition-colors" onclick="sortTable('id')">Falla N°<span id="sort-icon-id"></span></th>
+                                <th class="px-4 py-3 font-semibold cursor-pointer hover:bg-gray-100 transition-colors" onclick="sortTable('prevLead')">Lead Anterior (Cód.)<span id="sort-icon-prevLead"></span></th>
+                                <th class="px-4 py-3 font-semibold cursor-pointer hover:bg-gray-100 transition-colors" onclick="sortTable('currLead')">Lead Siguiente (Cód.)<span id="sort-icon-currLead"></span></th>
+                                <th class="px-4 py-3 font-semibold cursor-pointer hover:bg-gray-100 transition-colors" onclick="sortTable('startTime')">Inicio Intermitencia<span id="sort-icon-startTime"></span></th>
+                                <th class="px-4 py-3 font-semibold cursor-pointer hover:bg-gray-100 transition-colors" onclick="sortTable('endTime')">Fin Intermitencia<span id="sort-icon-endTime"></span></th>
+                                <th class="px-4 py-3 font-semibold cursor-pointer hover:bg-gray-100 transition-colors text-upc-red" onclick="sortTable('duration')">Duración (Minutos)<span id="sort-icon-duration"> &nbsp;↕️</span></th>
+                                <th class="px-4 py-3 font-semibold text-center cursor-pointer hover:bg-gray-100 transition-colors" onclick="sortTable('severity')">Severidad<span id="sort-icon-severity"></span></th>
                             </tr>
                         </thead>
                         <tbody id="incidentsTableBody" class="divide-y divide-gray-100 font-medium">
@@ -545,6 +545,8 @@
         let sortedRecords = [];   // Chronologically sorted records
         let incidentsList = [];   // Calculated gaps > 5 minutes
         let filteredIncidents = []; // Incidents matching search / filters
+        let currentSortField = 'id'; // Default chronological sorting
+        let currentSortOrder = 'asc'; // Default ascending order
 
         let fileMetadata = {
             fileName: "",
@@ -1059,6 +1061,8 @@
 
             // Populate Table
             currentPage = 1;
+            currentSortField = 'id';
+            currentSortOrder = 'asc';
             filterAndRenderTable();
 
             // Enable PDF Export button
@@ -1394,9 +1398,55 @@
                 return matchesSearch && matchesSeverity;
             });
 
+            // Apply sorting
+            if (currentSortField) {
+                filteredIncidents.sort((a, b) => {
+                    let valA = a[currentSortField];
+                    let valB = b[currentSortField];
+
+                    // Handle date/time objects
+                    if (valA instanceof Date) valA = valA.getTime();
+                    if (valB instanceof Date) valB = valB.getTime();
+
+                    // Handle strings comparison case-insensitively
+                    if (typeof valA === 'string') {
+                        valA = valA.toLowerCase();
+                        valB = valB.toLowerCase();
+                    }
+
+                    if (valA < valB) return currentSortOrder === 'asc' ? -1 : 1;
+                    if (valA > valB) return currentSortOrder === 'asc' ? 1 : -1;
+                    return 0;
+                });
+            }
+
             // Recalculate pagination boundaries
             currentPage = 1;
             renderTablePage();
+            updateSortIcons();
+        }
+
+        function sortTable(field) {
+            if (currentSortField === field) {
+                currentSortOrder = currentSortOrder === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSortField = field;
+                currentSortOrder = 'desc'; // Default to descending on new column click
+            }
+            filterAndRenderTable();
+        }
+
+        function updateSortIcons() {
+            const fields = ['id', 'prevLead', 'currLead', 'startTime', 'endTime', 'duration', 'severity'];
+            fields.forEach(f => {
+                const el = document.getElementById(`sort-icon-${f}`);
+                if (!el) return;
+                if (currentSortField === f) {
+                    el.innerHTML = currentSortOrder === 'asc' ? ' &nbsp;▲' : ' &nbsp;▼';
+                } else {
+                    el.innerHTML = f === 'duration' ? ' &nbsp;↕️' : '';
+                }
+            });
         }
 
         function renderTablePage() {
