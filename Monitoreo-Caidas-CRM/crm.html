@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitor de Caídas e Intermitencias CRM - UPC</title>
+    <link rel="shortcut icon" href="assets/icon-upc.ico" type="image/x-icon">
+
+    <!-- TailWind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- PapaParse CDN for CSV parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+
+    <!-- SheetJS (XLSX) CDN for Excel parsing -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+    <!-- html2pdf.js CDN for PDF export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+    <!-- Link to external custom styles -->
+    <link rel="stylesheet" href="css/styles.css">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        upc: {
+                            red: '#D50000',
+                            redHover: '#B70000',
+                            dark: '#1A1A1A',
+                            grayDark: '#333333',
+                            grayLight: '#F3F4F6'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+
+<body class="p-4 md:p-8">
+
+    <!-- Screen Loader Overlay -->
+    <div id="loadingOverlay"
+        class="fixed inset-0 z-50 hidden flex-col items-center justify-center bg-white/95 backdrop-blur-sm transition-all duration-300">
+        <div class="relative flex items-center justify-center">
+            <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-upc-red shadow-lg"></div>
+            <div class="absolute text-xs font-bold text-upc-red">UPC</div>
+        </div>
+        <h2 class="text-xl font-bold text-upc-dark mt-6">Analizando datos del CRM...</h2>
+        <p class="text-sm text-gray-500 mt-2 text-center max-w-sm px-4">Procesando registros cronológicos, calculando
+            brechas de tiempo y categorizando incidentes operacionales.</p>
+    </div>
+
+    <!-- Info/Format Modal -->
+    <div id="formatModal"
+        class="fixed inset-0 z-50 hidden flex items-center justify-center bg-black/55 backdrop-blur-sm p-4">
+        <div
+            class="bg-white rounded-xl shadow-2xl p-6 max-w-2xl w-full border border-gray-100 overflow-y-auto max-h-[90vh]">
+            <div class="flex justify-between items-start border-b border-gray-200 pb-4 mb-4">
+                <h3 class="text-lg font-bold text-upc-dark flex items-center gap-2">
+                    <span class="text-upc-red">ℹ️</span> Guía de Carga y Mapeo de Columnas
+                </h3>
+                <button onclick="toggleModal('formatModal', false)"
+                    class="text-gray-400 hover:text-gray-600 font-semibold text-lg">&times;</button>
+            </div>
+
+            <p class="text-sm text-gray-600 mb-4">
+                El dashboard procesa automáticamente archivos <strong>Excel (.xlsx, .xls)</strong> y
+                <strong>CSV</strong> exportados del CRM de UPC. Para garantizar un correcto análisis, los nombres de
+                columnas originales se reestructuran automáticamente bajo el siguiente esquema:
+            </p>
+
+            <div class="border border-gray-200 rounded-lg overflow-hidden mb-4">
+                <table class="min-w-full text-xs text-left text-gray-600">
+                    <thead class="bg-gray-50 text-gray-700 uppercase font-semibold">
+                        <tr>
+                            <th class="px-4 py-2 border-b">Columna Original CRM</th>
+                            <th class="px-4 py-2 border-b text-upc-red">Nombre Mapeado</th>
+                            <th class="px-4 py-2 border-b">Propósito</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100 font-medium">
+                        <tr>
+                            <td class="px-4 py-2">Cod. persona (Contacto) (Contacto)</td>
+                            <td class="px-4 py-2 text-upc-red font-semibold">Código de Persona</td>
+                            <td class="px-4 py-2">Identificador único del postulante / lead.</td>
+                        </tr>
+                        <tr>
+                            <td class="px-4 py-2">Fecha de creación</td>
+                            <td class="px-4 py-2 text-upc-red font-semibold">Fecha</td>
+                            <td class="px-4 py-2">Fecha del registro del lead.</td>
+                        </tr>
+                        <tr>
+                            <td class="px-4 py-2">Hora</td>
+                            <td class="px-4 py-2 text-upc-red font-semibold">Hora</td>
+                            <td class="px-4 py-2">Hora exacta de creación del lead.</td>
+                        </tr>
+                        <tr>
+                            <td class="px-4 py-2">Campaña de referencia</td>
+                            <td class="px-4 py-2 text-upc-red font-semibold">Campaña</td>
+                            <td class="px-4 py-2">Campaña comercial asignada.</td>
+                        </tr>
+                        <tr>
+                            <td class="px-4 py-2">Template Data HSM</td>
+                            <td class="px-4 py-2 text-upc-red font-semibold">Canal</td>
+                            <td class="px-4 py-2">Canal por donde ingresa el lead (WhatsApp, etc.).</td>
+                        </tr>
+                        <tr>
+                            <td class="px-4 py-2">Fuente de origen (Referente a) (Contacto)</td>
+                            <td class="px-4 py-2 text-upc-red font-semibold">Fuente Origen</td>
+                            <td class="px-4 py-2">Origen o proveedor del tráfico de captación.</td>
+                        </tr>
+                        <tr>
+                            <td class="px-4 py-2">Sub estado</td>
+                            <td class="px-4 py-2 text-upc-red font-semibold">Estado</td>
+                            <td class="px-4 py-2">Estado interno de atención.</td>
+                        </tr>
+                        <tr>
+                            <td class="px-4 py-2">Periodo (Campaña de referencia) (Campaña)</td>
+                            <td class="px-4 py-2 text-upc-red font-semibold">Periodo</td>
+                            <td class="px-4 py-2">Periodo o ciclo académico.</td>
+                        </tr>
+                        <tr>
+                            <td class="px-4 py-2">Unidad de negocio (Campaña de referencia) (Campaña)</td>
+                            <td class="px-4 py-2 text-upc-red font-semibold">Unidad de Negocio</td>
+                            <td class="px-4 py-2">División académica (ej: Pregrado, EPE).</td>
+                        </tr>
+                        <tr>
+                            <td class="px-4 py-2">Código de campaña (Campaña de referencia) (Campaña)</td>
+                            <td class="px-4 py-2 text-upc-red font-semibold">Cód de Campaña</td>
+                            <td class="px-4 py-2">Código técnico de campaña de marketing.</td>
+                        </tr>
+                        <tr>
+                            <td class="px-4 py-2">Chattigo Conversation Id</td>
+                            <td class="px-4 py-2 text-upc-red font-semibold">ID Chattigo</td>
+                            <td class="px-4 py-2">Código de trazabilidad en canal de chat.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <h4 class="font-bold text-upc-dark text-sm mb-2">📌 Reglas de Negocio del Análisis:</h4>
+            <ul class="list-disc list-inside text-xs text-gray-600 space-y-1 mb-4 font-medium">
+                <li><span class="font-semibold text-upc-red">Regla Principal:</span> Si transcurren más de <strong>5
+                        minutos</strong> entre el ingreso de un lead y el siguiente, se considera una posible caída o
+                    intermitencia operacional.</li>
+                <li><span class="font-semibold">Clasificación de Incidentes:</span>
+                    <ul class="pl-4 list-circle space-y-0.5 mt-1">
+                        <li>5 a 10 minutos &rarr; Severidad <strong>Baja</strong></li>
+                        <li>10 a 20 minutos &rarr; Severidad <strong>Media</strong></li>
+                        <li>20 a 40 minutos &rarr; Severidad <strong>Alta</strong></li>
+                        <li>Más de 40 minutos &rarr; Severidad <strong>Crítica</strong></li>
+                    </ul>
+                </li>
+            </ul>
+
+            <h4 class="font-bold text-upc-dark text-sm mb-2">📊 Lectura y Lógica del Dashboard:</h4>
+            <div
+                class="text-xs text-gray-600 space-y-2 mb-4 font-medium bg-gray-50 p-3 rounded-lg border border-gray-150">
+                <p><strong>1. Uptime Comercial:</strong> La disponibilidad se calcula en base al horario hábil comercial
+                    (Lunes a Viernes 9:00 AM a 9:00 PM, Sábados 9:00 AM a 7:00 PM, Domingos no laborables), excluyendo
+                    la inactividad nocturna natural para evitar falsos positivos.</p>
+                <p><strong>2. Score de Salud CRM:</strong> Un puntaje único de 0 a 100 ponderado equitativamente (25%
+                    cada uno) por: Disponibilidad Comercial, Control de Incidentes Críticos, Duración de la Brecha
+                    Máxima y Proporción de Leads en Riesgo.</p>
+                <p><strong>3. Oportunidades en Riesgo:</strong> Representa el porcentaje estimado de prospectos perdidos
+                    durante la interrupción, calculado sobre el volumen total potencial de tráfico (leads reales + leads
+                    estimados perdidos).</p>
+                <p><strong>4. Estrategia de Conversión:</strong> Toda la captación Inbound/Outbound deriva al canal de
+                    WhatsApp. Las brechas de tiempo indican periodos donde los leads no se guardaron a tiempo en el CRM,
+                    rompiendo el flujo de atención.</p>
+            </div>
+
+            <button onclick="toggleModal('formatModal', false)"
+                class="w-full bg-upc-red hover:bg-upc-redHover text-white py-2 rounded-lg font-semibold transition text-sm shadow">
+                Entendido
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Container -->
+    <div id="captureArea" class="max-w-7xl mx-auto space-y-6">
+
+        <header
+            class="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-gray-200 pb-6 gap-4">
+            <div class="flex items-start gap-4">
+                <img src="assets/upc.png" alt="UPC Logo" class="h-10 w-auto object-contain mt-1"
+                    onerror="this.src='https://upload.wikimedia.org/wikipedia/commons/e/ee/Logo_UPC_educaci%C3%B3n.png'">
+                <div>
+                    <h1 class="text-2xl md:text-3xl font-bold tracking-tight text-upc-dark font-black leading-tight">
+                        Monitor de Caídas e Intermitencias<br>CRM
+                    </h1>
+                    <div class="text-xs font-semibold text-gray-500 mt-1.5 leading-tight">
+                        <p>Módulo de Analítica y Auditoría</p>
+                        <p>Operacional &bull; UPC</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex flex-col items-start md:items-end gap-3 no-export w-full md:w-auto">
+                <!-- Fila 1: Última actualización -->
+                <div class="flex flex-wrap items-center justify-start md:justify-end gap-3 w-full">
+                    <p class="text-xs font-bold text-upc-red" id="lastUpdateText">Última actualización: No hay datos
+                        cargados</p>
+                </div>
+                <!-- Fila 2: Botones de Exportar -->
+                <div class="flex flex-wrap items-center justify-start md:justify-end gap-3 w-full">
+                    <button id="pdfBtn" onclick="exportReportPDF()"
+                        class="bg-upc-dark text-white hover:bg-upc-grayDark px-3.5 py-2 rounded-lg font-semibold text-sm transition flex items-center gap-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled>
+                        <span>📥</span> Exportar PDF
+                    </button>
+                    <button onclick="toggleModal('formatModal', true)"
+                        class="bg-gray-100 border border-gray-200 text-gray-700 hover:bg-gray-200 px-3.5 py-2 rounded-lg font-semibold text-sm transition flex items-center gap-2 shadow-sm"
+                        title="Ver formato de datos">
+                        <span>💡</span> Guía de Columnas
+                    </button>
+                    <button id="xlsxBtn" onclick="exportReportXLSX()"
+                        class="bg-emerald-600 text-white hover:bg-emerald-700 px-3.5 py-2 rounded-lg font-semibold text-sm transition flex items-center gap-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled>
+                        <span>📊</span> Exportar Excel
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Unified File Upload, Mapping & Quality Section -->
+        <section id="columnMappingSection"
+            class="upc-card space-y-4 transition-all duration-300 no-export executive-hide">
+            <!-- Collapsible Header -->
+            <div class="flex items-center justify-between cursor-pointer select-none" onclick="toggleMappingDropdown()">
+                <h2 id="mappingSectionHeaderTitle" class="text-md font-bold text-upc-dark flex items-center gap-2">
+                    <span>📁</span> Carga de Datos y Mapeo
+                </h2>
+                <!-- Chevron starts hidden, only visible after a file is loaded -->
+                <span id="mappingDropdownChevron"
+                    class="hidden text-xs text-gray-500 font-bold transition-all duration-300 bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded-md">Ocultar
+                    ▲</span>
+            </div>
+
+            <!-- Collapsible Content Wrapper -->
+            <div id="mappingSectionContent" class="space-y-4 transition-all duration-300">
+                <!-- Drop Zone Inside -->
+                <div class="border-dashed border-2 border-gray-300 p-8 text-center cursor-pointer hover:border-upc-red transition-all rounded-lg"
+                    id="dropZone" onclick="document.getElementById('fileInput').click()">
+                    <div class="flex flex-col items-center justify-center space-y-3">
+                        <div class="bg-red-50 p-4 rounded-full text-upc-red">
+                            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12">
+                                </path>
+                            </svg>
+                        </div>
+                        <div>
+                            <span class="font-bold text-upc-dark text-lg block">Arrastra tu archivo aquí</span>
+                            <span class="text-sm text-gray-500 block mt-1">Formatos soportados: Excel (.xlsx, .xls) o
+                                CSV (.csv) exportados del CRM</span>
+                        </div>
+                        <button
+                            class="bg-upc-red hover:bg-upc-redHover text-white px-5 py-2.5 rounded-lg font-semibold text-sm shadow transition-all">
+                            Seleccionar Archivo
+                        </button>
+                        <input type="file" id="fileInput" class="hidden" accept=".csv, .xlsx, .xls">
+                    </div>
+                </div>
+
+                <!-- Mapping results & quality parameters. Hidden until file is loaded -->
+                <div id="mappingResultsArea" class="hidden space-y-4 border-t border-gray-100 pt-4">
+                    <span class="text-xs font-bold text-gray-500 uppercase tracking-wider block">Estado de Mapeo y
+                        Calidad de Archivo</span>
+
+                    <!-- Mapping Badges Grid -->
+                    <div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3" id="mappingBadgesContainer">
+                        <!-- Mapped elements injected here -->
+                    </div>
+
+                    <!-- Data Quality Flags -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+                        <div class="flex items-center gap-3 p-3 bg-amber-50 rounded-lg border border-amber-200">
+                            <span class="text-2xl text-amber-600">⚠️</span>
+                            <div>
+                                <span class="text-xs font-bold text-amber-800 uppercase block tracking-wider">Registros
+                                    Duplicados</span>
+                                <span class="text-lg font-extrabold text-amber-900 mt-0.5 block"
+                                    id="auditDuplicates">0</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-3 p-3 bg-red-50 rounded-lg border border-red-200">
+                            <span class="text-2xl text-red-600">🚫</span>
+                            <div>
+                                <span class="text-xs font-bold text-red-800 uppercase block tracking-wider">Timestamps
+                                    Inválidos</span>
+                                <span class="text-lg font-extrabold text-red-900 mt-0.5 block"
+                                    id="auditInvalids">0</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                            <span class="text-2xl text-blue-600">❓</span>
+                            <div>
+                                <span class="text-xs font-bold text-blue-800 uppercase block tracking-wider">Campos
+                                    Faltantes (Nulos)</span>
+                                <span class="text-lg font-extrabold text-blue-900 mt-0.5 block"
+                                    id="auditMissings">0</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Dashboard Analytics Dashboard (Hidden initially) -->
+        <div id="analyticsDashboard" class="space-y-6 hidden">
+
+            <!-- Traffic Light / Estado General Banner -->
+            <section id="generalStatusBanner"
+                class="upc-card p-4 flex flex-col md:flex-row justify-between items-center gap-4 transition-all duration-300">
+                <!-- Left: Traffic Light Icon and Text -->
+                <div class="flex items-center gap-3">
+                    <span id="statusTrafficLightIcon" class="text-3xl">🟢</span>
+                    <div>
+                        <span class="text-xs font-bold text-gray-500 uppercase tracking-wider block">Estado General del
+                            CRM</span>
+                        <h2 id="statusTrafficLightText" class="text-lg font-black text-upc-dark">SISTEMA ESTABLE &bull;
+                            Analizando datos...</h2>
+                    </div>
+                </div>
+
+                <!-- Center: Global Health Score -->
+                <div class="flex items-center gap-3 border-l border-r border-gray-200 px-6 py-1 cursor-help"
+                    id="globalHealthScoreContainer"
+                    title="Fórmula de Salud CRM: Disponibilidad (40%) + Control de Incidencias Críticas (30%) + Tiempo Caído (20%) + Frecuencia entre Leads (10%)">
+                    <div class="text-center">
+                        <span
+                            class="text-[10px] font-bold text-gray-400 uppercase flex items-center justify-center gap-1">
+                            Índice de Salud CRM
+                            <span class="cursor-help text-gray-400 text-[9px]"
+                                title="Evaluación global de la estabilidad del CRM. Fórmula: Disponibilidad CRM (40%) + Incidencias Críticas (30%) + Tiempo Caído (20%) + Frecuencia entre Leads (10%). Escala: 90-100 Excelente, 75-89 Bueno, 60-74 Atención, 40-59 Riesgo, 0-39 Crítico.">ℹ️</span>
+                        </span>
+                        <div class="flex items-center justify-center gap-1.5 mt-0.5">
+                            <div class="flex items-baseline">
+                                <span id="globalHealthScoreValue" class="text-3xl font-black text-green-600">100</span>
+                                <span class="text-xs text-gray-400 font-bold">/100</span>
+                            </div>
+                            <span id="globalHealthScoreLabel"
+                                class="text-xs font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-800">🟢
+                                Excelente</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right: Alert Details -->
+                <div class="text-right flex flex-col items-end gap-1">
+                    <div>
+                        <span class="text-[10px] font-bold text-gray-400 uppercase block">Detalle de Alertas</span>
+                        <span id="statusTrafficLightDetail" class="text-xs font-semibold text-gray-600">0 incidencias
+                            críticas de un total de 0 registradas.</span>
+                    </div>
+                    <div class="flex items-center gap-1 mt-1">
+                        <span class="text-[10px] font-bold text-gray-400 uppercase">Riesgo Operacional:</span>
+                        <span id="kpiRiesgoOperacional"
+                            class="text-xs font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-800">🟢
+                            Bajo</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section: Executive Indicators -->
+            <section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="kpiGrid">
+                <!-- Group 1: Resumen Operacional -->
+                <div
+                    class="upc-card bg-gradient-to-br from-white to-red-50/10 border-l-4 border-l-upc-red flex flex-col">
+                    <h3
+                        class="text-xs font-bold text-upc-dark border-b border-gray-100 pb-2 mb-3 flex items-center gap-1.5 uppercase tracking-wider">
+                        <span>💼</span> Resumen Operacional
+                    </h3>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="relative group">
+                            <span
+                                class="text-[10px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                                Leads Procesados
+                                <span class="cursor-help text-gray-400 text-[9px]"
+                                    title="Cantidad total de registros de prospectos (leads) procesados exitosamente del archivo.">ℹ️</span>
+                            </span>
+                            <span class="text-2xl font-black text-upc-dark mt-1 block" id="kpiLeads">0</span>
+                        </div>
+                        <div class="relative group">
+                            <span
+                                class="text-[10px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                                Intermitencias
+                                <span class="cursor-help text-gray-400 text-[9px]"
+                                    title="Número total de brechas temporales superiores a 5 minutos detectadas en el flujo secuencial de leads.">ℹ️</span>
+                            </span>
+                            <span class="text-2xl font-black text-upc-dark mt-1 block" id="kpiIncidentsCount">0</span>
+                        </div>
+                        <div class="relative group">
+                            <span
+                                class="text-[10px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                                Tiempo Caído Total
+                                <span class="cursor-help text-gray-400 text-[9px]"
+                                    title="Suma acumulada del tiempo transcurrido en todas las intermitencias operacionales detectadas.">ℹ️</span>
+                            </span>
+                            <span class="text-2xl font-black text-upc-dark mt-1 block" id="kpiTotalOutageTime">0
+                                min</span>
+                        </div>
+                        <div class="relative group">
+                            <span
+                                class="text-[10px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                                Incidencias Críticas
+                                <span class="cursor-help text-gray-400 text-[9px]"
+                                    title="Número de interrupciones del servicio con una duración superior a 40 minutos.">ℹ️</span>
+                            </span>
+                            <span class="text-2xl font-black text-red-600 mt-1 block"
+                                id="kpiCriticalIncidentsCount">0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Group 2: Salud Operativa -->
+                <div class="upc-card bg-gradient-to-br from-white to-gray-50/10 border-l-4 border-l-gray-700 flex flex-col"
+                    id="kpiContinuityCard">
+                    <h3
+                        class="text-xs font-bold text-upc-dark border-b border-gray-100 pb-2 mb-3 flex items-center gap-1.5 uppercase tracking-wider">
+                        <span>⚙️</span> Salud Operativa
+                    </h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div>
+                            <span
+                                class="text-[10px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                                Disponibilidad CRM
+                                <span class="cursor-help text-gray-400 text-[9px]"
+                                    title="Porcentaje de tiempo del período analizado en el que no se detectaron interrupciones en el flujo de leads. Fórmula: (1 - Tiempo Caído en Horario Comercial / Total Horario Comercial) * 100. Horario: Lun-Vie 9:00-21:00, Sáb 9:00-19:00.">ℹ️</span>
+                            </span>
+                            <span class="text-2xl font-black text-green-600 mt-1 block" id="kpiContinuity">100%</span>
+                            <span class="text-[9px] text-gray-450 block mt-0.5 font-bold" id="kpiAccumulatedOutages">0h
+                                0m de intermitencias acumuladas</span>
+                            <div id="availabilityAlert" class="text-[9px] text-red-600 font-bold mt-1 hidden">Validar
+                                cálculo de disponibilidad debido al alto nivel de intermitencias detectadas.</div>
+                        </div>
+                        <div>
+                            <span
+                                class="text-[10px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                                Máxima Brecha
+                                <span class="cursor-help text-gray-400 text-[9px]"
+                                    title="La interrupción más larga registrada en el período analizado. Fórmula: Max(Tiempo transcurrido entre registros sucesivos).">ℹ️</span>
+                            </span>
+                            <span class="text-2xl font-black text-upc-dark mt-1 block" id="kpiMaxGap">-</span>
+                        </div>
+                        <div>
+                            <span
+                                class="text-[10px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                                Freq. entre Leads
+                                <span class="cursor-help text-gray-400 text-[9px]"
+                                    title="Frecuencia promedio de ingreso de leads en periodos normales (excluyendo gaps > 5 min). Fórmula: Promedio de intervalos entre leads <= 5 min.">ℹ️</span>
+                            </span>
+                            <span class="text-2xl font-black text-upc-dark mt-1 block" id="kpiAvgGap">-</span>
+                        </div>
+                    </div>
+                    <span class="text-[9px] text-gray-400 mt-auto pt-4 block italic" id="kpiMaxGapDates">Sin
+                        incidencias</span>
+                </div>
+
+                <!-- Group 3: Diagnóstico -->
+                <div
+                    class="upc-card bg-gradient-to-br from-white to-blue-50/10 border-l-4 border-l-blue-600 flex flex-col executive-hide">
+                    <h3
+                        class="text-xs font-bold text-upc-dark border-b border-gray-100 pb-2 mb-3 flex items-center gap-1.5 uppercase tracking-wider">
+                        <span>🔍</span> Diagnóstico Operacional
+                    </h3>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <span class="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">Hora más
+                                Afectada</span>
+                            <span class="text-sm font-extrabold text-upc-dark mt-1 block truncate"
+                                id="kpiPeakHour">-</span>
+                        </div>
+                        <div>
+                            <span class="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">Día más
+                                Afectado</span>
+                            <span class="text-sm font-extrabold text-upc-dark mt-1 block truncate"
+                                id="kpiPeakDay">-</span>
+                        </div>
+                        <div>
+                            <span class="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">Canal más
+                                Afectado</span>
+                            <span class="text-sm font-extrabold text-red-700 mt-1 block truncate"
+                                id="kpiPeakChannel">-</span>
+                        </div>
+                        <div>
+                            <span class="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">Fuente más
+                                Afectada</span>
+                            <span class="text-sm font-extrabold text-upc-dark mt-1 block truncate"
+                                id="kpiPeakSource">-</span>
+                        </div>
+                    </div>
+                </div>
+
+            </section>
+
+            <!-- Executive Summary Panel -->
+            <section class="upc-card space-y-4 w-full flex flex-col justify-between transition-all duration-300">
+                <div class="flex items-center justify-between cursor-pointer select-none pb-2 border-b border-gray-200"
+                    onclick="toggleSummaryPanel()">
+                    <h2 class="text-sm font-bold text-upc-dark flex items-center gap-2">
+                        <span>📝</span> Informes y Resúmenes Analíticos
+                    </h2>
+                    <span id="summaryPanelChevron"
+                        class="text-xs text-gray-500 font-bold transition-all duration-300 bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded-md">Ocultar
+                        ▲</span>
+                </div>
+
+                <div id="summaryPanelContent" class="space-y-4">
+                    <div class="border-b border-gray-200">
+                        <nav class="flex space-x-6" aria-label="Tabs">
+                            <button onclick="switchTab('businessTab', 'techTab', this)"
+                                class="tab-btn active pb-3 text-sm font-bold text-gray-500 hover:text-upc-red flex items-center gap-1.5">
+                                <span>💼</span> Resumen Ejecutivo (Negocio)
+                            </button>
+                            <button onclick="switchTab('techTab', 'businessTab', this)"
+                                class="tab-btn pb-3 text-sm font-bold text-gray-500 hover:text-upc-red flex items-center gap-1.5">
+                                <span>💻</span> Análisis Operacional (TI / Sistemas)
+                            </button>
+                        </nav>
+                    </div>
+
+                    <!-- Business Tab Content -->
+                    <div id="businessTab" class="space-y-3 pt-2 text-sm text-gray-700 leading-relaxed">
+                        <h3 class="text-lg font-bold text-upc-dark">Impacto Comercial de Intermitencias CRM</h3>
+                        <p id="businessSummaryText">No hay datos procesados.</p>
+
+                        <div class="bg-red-50 border border-red-100 rounded-lg p-4 mt-3 flex items-start gap-3">
+                            <span class="text-xl">💡</span>
+                            <div>
+                                <span class="font-bold text-upc-red block text-xs uppercase tracking-wide">Foco en
+                                    Conversión</span>
+                                <p class="text-xs text-red-950 mt-1 leading-relaxed">
+                                    Un lead de captación directa (Inbound) que no se registra a tiempo sufre una
+                                    caída
+                                    drástica en su probabilidad de conversión. Si el CRM experimenta caídas, la cola
+                                    de
+                                    atención se congela, demorando el contacto inicial y permitiendo que
+                                    competidores capten
+                                    al prospecto primero.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tech Tab Content -->
+                    <div id="techTab" class="space-y-3 pt-2 text-sm text-gray-700 leading-relaxed hidden">
+                        <h3 class="text-lg font-bold text-upc-dark">Auditoría Técnica del Pipeline de Ingesta</h3>
+                        <p id="techSummaryText">No hay datos procesados.</p>
+
+                        <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 mt-3 flex items-start gap-3">
+                            <span class="text-xl">🛠️</span>
+                            <div>
+                                <span class="font-bold text-gray-700 block text-xs uppercase tracking-wide">Acciones
+                                    Técnicas Recomendadas</span>
+                                <p class="text-xs text-gray-600 mt-1 leading-relaxed">
+                                    Validar la cola de procesamiento del webhook de captación. En periodos de alta
+                                    carga
+                                    (campañas masivas), es probable que el middleware del CRM esté sufriendo
+                                    saturación
+                                    debido a limitaciones de concurrencia de la API o latencia en la base de datos
+                                    transaccional.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Visualizations Section -->
+            <section class="space-y-6">
+                <!-- Row 1: Tendencia Diaria (Full Width) -->
+                <div class="upc-card flex flex-col justify-between min-h-[400px]">
+                    <h3
+                        class="text-sm font-bold text-upc-dark border-b border-gray-100 pb-3 mb-2 flex items-center gap-1.5">
+                        <span>📈</span> Tendencia Diaria de Leads e Incidencias (Principal)
+                    </h3>
+                    <div class="relative flex-1 flex items-center justify-center p-2 h-[330px]">
+                        <canvas id="timelineChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- El antiguo card de insight automático ha sido removido de aquí para evitar redundancia con el nuevo grid de insights ejecutivos. -->
+
+                <!-- Row 2: Secondary Charts (3 columns grid on desktop) -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 executive-hide">
+                    <!-- Distribución de Severidad -->
+                    <div class="upc-card flex flex-col justify-between min-h-[350px]">
+                        <h3
+                            class="text-sm font-bold text-upc-dark border-b border-gray-100 pb-3 mb-2 flex items-center gap-1.5">
+                            <span>📊</span> Distribución de Incidentes por Severidad
+                        </h3>
+                        <div class="relative flex-1 flex items-center justify-center p-2 h-[280px]">
+                            <canvas id="severityChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Heatmap Operacional -->
+                    <div class="upc-card flex flex-col justify-between min-h-[350px]">
+                        <h3
+                            class="text-sm font-bold text-upc-dark border-b border-gray-100 pb-3 mb-2 flex items-center gap-1.5">
+                            <span>🌡️</span> Heatmap Operacional: Patrón Horario
+                        </h3>
+                        <div class="flex-1 flex flex-col justify-between p-2 mt-2">
+                            <div id="heatmapContainer" class="overflow-x-auto">
+                                <!-- Injected dynamically via JS -->
+                            </div>
+                            <div class="flex items-center justify-end gap-1 mt-3 text-[9px] text-gray-500 font-bold">
+                                <span>Menos</span>
+                                <div class="w-2.5 h-2.5 bg-red-50 border border-gray-200"></div>
+                                <div class="w-2.5 h-2.5 bg-red-200"></div>
+                                <div class="w-2.5 h-2.5 bg-red-400"></div>
+                                <div class="w-2.5 h-2.5 bg-red-600"></div>
+                                <div class="w-2.5 h-2.5 bg-red-900"></div>
+                                <span>Más</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Impacto por Canal -->
+                    <div class="upc-card flex flex-col justify-between min-h-[350px]">
+                        <h3
+                            class="text-sm font-bold text-upc-dark border-b border-gray-100 pb-3 mb-2 flex items-center gap-1.5">
+                            <span>📢</span> Impacto Operacional por Canal
+                        </h3>
+                        <div class="relative flex-1 flex items-center justify-center p-2 h-[280px]">
+                            <canvas id="channelChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Detailed Incidents Table -->
+            <section class="upc-card space-y-4 executive-hide">
+                <div class="flex flex-col gap-1 border-b border-gray-100 pb-3">
+                    <h3 class="text-md font-bold text-upc-dark flex items-center gap-1.5">
+                        <span>🚨</span> Registro Completo de Incidentes Detectados
+                    </h3>
+                    <p class="text-xs text-gray-500 font-medium">Lista de brechas cronológicas de leads superiores a 5
+                        minutos</p>
+                </div>
+
+                <!-- Search & Filter Controls (Unified Grid) -->
+                <div class="bg-gray-50/70 p-4 rounded-xl border border-gray-200 no-export">
+                    <div
+                        class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-9 gap-3.5 items-end">
+                        <div class="flex flex-col gap-1">
+                            <span class="text-[9px] text-gray-400 font-extrabold uppercase tracking-wider">Buscar por
+                                código</span>
+                            <input type="text" id="tableSearch" placeholder="Código..."
+                                class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-xs focus:ring-1 focus:ring-upc-red focus:border-upc-red outline-none bg-white font-medium transition-all h-[34px]">
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <span class="text-[9px] text-gray-400 font-extrabold uppercase tracking-wider">Desde</span>
+                            <input type="date" id="tableDateStart"
+                                class="w-full border border-gray-300 rounded-lg px-2.5 py-1 text-xs outline-none focus:ring-1 focus:ring-upc-red transition-all bg-white text-gray-700 font-medium h-[34px]">
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <span class="text-[9px] text-gray-400 font-extrabold uppercase tracking-wider">Hasta</span>
+                            <input type="date" id="tableDateEnd"
+                                class="w-full border border-gray-300 rounded-lg px-2.5 py-1 text-xs outline-none focus:ring-1 focus:ring-upc-red transition-all bg-white text-gray-700 font-medium h-[34px]">
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <span class="text-[9px] text-gray-400 font-extrabold uppercase tracking-wider">Canal</span>
+                            <select id="channelFilter"
+                                class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-xs focus:ring-1 focus:ring-upc-red focus:border-upc-red outline-none bg-white text-gray-700 font-semibold transition-all h-[34px] truncate">
+                                <option value="ALL">Todos los Canales</option>
+                            </select>
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <span
+                                class="text-[9px] text-gray-400 font-extrabold uppercase tracking-wider">Segmento</span>
+                            <select id="segmentFilter"
+                                class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-xs focus:ring-1 focus:ring-upc-red focus:border-upc-red outline-none bg-white text-gray-700 font-semibold transition-all h-[34px] truncate">
+                                <option value="ALL">Todos los Segmentos</option>
+                            </select>
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <span class="text-[9px] text-gray-400 font-extrabold uppercase tracking-wider">Unidad</span>
+                            <select id="unitFilter"
+                                class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-xs focus:ring-1 focus:ring-upc-red focus:border-upc-red outline-none bg-white text-gray-700 font-semibold transition-all h-[34px] truncate">
+                                <option value="ALL">Todas las Unidades</option>
+                            </select>
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <span
+                                class="text-[9px] text-gray-400 font-extrabold uppercase tracking-wider">Campaña</span>
+                            <select id="campaignFilter"
+                                class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-xs focus:ring-1 focus:ring-upc-red focus:border-upc-red outline-none bg-white text-gray-700 font-semibold transition-all h-[34px] truncate">
+                                <option value="ALL">Todas las Campañas</option>
+                            </select>
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <span
+                                class="text-[9px] text-gray-400 font-extrabold uppercase tracking-wider">Severidad</span>
+                            <select id="severityFilter"
+                                class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-xs focus:ring-1 focus:ring-upc-red focus:border-upc-red outline-none bg-white text-gray-700 font-semibold transition-all h-[34px]">
+                                <option value="ALL">Todas las Severidades</option>
+                                <option value="Baja">Baja (5 - 10 min)</option>
+                                <option value="Media">Media (10 - 20 min)</option>
+                                <option value="Alta">Alta (20 - 40 min)</option>
+                                <option value="Crítica">Crítica (> 40 min)</option>
+                            </select>
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <span class="text-[9px] text-gray-400 font-extrabold uppercase tracking-wider">Horario
+                                Laboral</span>
+                            <div
+                                class="w-full flex items-center justify-center bg-white border border-gray-300 rounded-lg h-[34px] shadow-sm hover:bg-gray-50 transition-colors">
+                                <input id="businessHoursToggle" type="checkbox"
+                                    class="h-[18px] w-[18px] accent-[var(--upc-red)] cursor-pointer"
+                                    title="Solo horario laboral">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Table Wrapper -->
+                <div class="overflow-x-auto rounded-lg border border-gray-200 bg-white">
+                    <table class="min-w-full text-xs text-left text-gray-600">
+                        <thead
+                            class="bg-gray-50 text-gray-500 uppercase tracking-wider font-semibold border-b border-gray-200 select-none whitespace-nowrap">
+                            <tr>
+                                <th class="px-3 py-3 font-semibold cursor-pointer hover:bg-gray-100 transition-colors"
+                                    onclick="sortTable('id')">Falla N°<span id="sort-icon-id"></span></th>
+                                <th class="px-3 py-3 font-semibold cursor-pointer hover:bg-gray-100 transition-colors"
+                                    onclick="sortTable('prevLead')">Lead Anterior<span id="sort-icon-prevLead"></span>
+                                </th>
+                                <th class="px-3 py-3 font-semibold cursor-pointer hover:bg-gray-100 transition-colors"
+                                    onclick="sortTable('currLead')">Lead Siguiente<span id="sort-icon-currLead"></span>
+                                </th>
+                                <th class="px-3 py-3 font-semibold cursor-pointer hover:bg-gray-100 transition-colors"
+                                    onclick="sortTable('startTime')">Inicio<span id="sort-icon-startTime"></span></th>
+                                <th class="px-3 py-3 font-semibold cursor-pointer hover:bg-gray-100 transition-colors"
+                                    onclick="sortTable('endTime')">Fin<span id="sort-icon-endTime"></span></th>
+                                <th class="px-3 py-3 font-semibold cursor-pointer hover:bg-gray-100 transition-colors text-upc-red"
+                                    onclick="sortTable('duration')">Duración<span id="sort-icon-duration">
+                                        &nbsp;↕️</span></th>
+                                <th class="px-3 py-3 font-semibold text-center cursor-pointer hover:bg-gray-100 transition-colors"
+                                    onclick="sortTable('severity')">Severidad<span id="sort-icon-severity"></span></th>
+                                <th class="px-3 py-3 font-semibold text-center cursor-pointer hover:bg-gray-100 transition-colors"
+                                    onclick="sortTable('leadsAfectados')">
+                                    <span class="inline-flex items-center gap-1">
+                                        Leads Afectados
+                                        <span class="cursor-help text-gray-400 text-[10px]"
+                                            title="Estimación del volumen de leads perdidos o demorados durante el incidente, calculado según la frecuencia promedio de tráfico de ese canal.">ℹ️</span>
+                                    </span>
+                                    <span id="sort-icon-leadsAfectados"></span>
+                                </th>
+                                <th class="px-3 py-3 font-semibold cursor-pointer hover:bg-gray-100 transition-colors"
+                                    onclick="sortTable('canal')">Canal<span id="sort-icon-canal"></span></th>
+                                <th class="px-3 py-3 font-semibold cursor-pointer hover:bg-gray-100 transition-colors"
+                                    onclick="sortTable('segmento')">Segmento<span id="sort-icon-segmento"></span></th>
+                                <th class="px-3 py-3 font-semibold cursor-pointer hover:bg-gray-100 transition-colors"
+                                    onclick="sortTable('fuente')">Fuente<span id="sort-icon-fuente"></span></th>
+                                <th class="px-3 py-3 font-semibold cursor-pointer hover:bg-gray-100 transition-colors"
+                                    onclick="sortTable('unidadNegocio')">Unidad<span
+                                        id="sort-icon-unidadNegocio"></span></th>
+                                <th class="px-3 py-3 font-semibold text-center cursor-pointer hover:bg-gray-100 transition-colors"
+                                    onclick="sortTable('impactoComercial')">Impacto Comercial<span
+                                        id="sort-icon-impactoComercial"></span></th>
+                            </tr>
+                        </thead>
+                        <tbody id="incidentsTableBody" class="divide-y divide-gray-100 font-medium whitespace-nowrap">
+                            <!-- Injected dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination Panel -->
+                <div class="flex justify-between items-center pt-2 text-xs no-export">
+                    <span class="text-gray-500" id="tablePaginationInfo">Mostrando 0 a 0 de 0 incidentes</span>
+                    <div class="flex items-center gap-1">
+                        <button onclick="changePage(-1)" id="prevPageBtn"
+                            class="border border-gray-300 text-gray-600 hover:bg-gray-50 px-2.5 py-1.5 rounded transition font-bold disabled:opacity-50 disabled:hover:bg-transparent"
+                            disabled>&lt; Ant</button>
+                        <button onclick="changePage(1)" id="nextPageBtn"
+                            class="border border-gray-300 text-gray-600 hover:bg-gray-50 px-2.5 py-1.5 rounded transition font-bold disabled:opacity-50 disabled:hover:bg-transparent"
+                            disabled>Sig &gt;</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Technical Diagnostics & Mitigation Actions Panel -->
+            <section class="upc-card space-y-4 w-full flex flex-col justify-between transition-all duration-300">
+                <div class="flex items-center justify-between cursor-pointer select-none pb-2 border-b border-gray-200"
+                    onclick="toggleDiagnosticsPanel()">
+                    <h2 class="text-sm font-bold text-upc-dark flex items-center gap-2">
+                        <span>🔍</span> Diagnóstico Técnico y Acciones de Mitigación
+                    </h2>
+                    <span id="diagnosticsPanelChevron"
+                        class="text-xs text-gray-500 font-bold transition-all duration-300 bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded-md">Ocultar
+                        ▲</span>
+                </div>
+
+                <div id="diagnosticsPanelContent" class="space-y-4">
+                    <div class="border-b border-gray-200">
+                        <nav class="flex space-x-6" aria-label="Diagnostics Tabs">
+                            <button onclick="switchTab('diagnosticsTab', 'mitigationTab', this)"
+                                class="tab-btn active pb-3 text-sm font-bold text-gray-500 hover:text-upc-red flex items-center gap-1.5">
+                                <span>🤖</span> Diagnóstico Inteligente (Causas Probables)
+                            </button>
+                            <button onclick="switchTab('mitigationTab', 'diagnosticsTab', this)"
+                                class="tab-btn pb-3 text-sm font-bold text-gray-500 hover:text-upc-red flex items-center gap-1.5">
+                                <span>🎯</span> Posibles Causas y Acciones de Mitigación
+                            </button>
+                        </nav>
+                    </div>
+
+                    <!-- Diagnostics Tab Content -->
+                    <div id="diagnosticsTab" class="w-full">
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full text-xs text-left text-gray-600">
+                                <thead
+                                    class="bg-gray-50 text-gray-500 uppercase tracking-wider font-semibold border-b border-gray-200">
+                                    <tr>
+                                        <th class="px-3 py-2 font-semibold">Causa Estimada</th>
+                                        <th class="px-3 py-2 font-semibold text-center">Confianza</th>
+                                        <th class="px-3 py-2 font-semibold">Criterio / Indicador Clave</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="diagnosticsTableBody"
+                                    class="divide-y divide-gray-100 font-semibold text-gray-700">
+                                    <tr>
+                                        <td class="px-3 py-3 font-bold text-gray-800">Saturación de Webhook</td>
+                                        <td class="px-3 py-3 text-center"><span
+                                                class="px-2 py-0.5 rounded text-[10px] font-bold bg-gray-100 text-gray-600">⚪
+                                                Espera</span></td>
+                                        <td class="px-3 py-3 text-gray-500">Cargue datos para calcular...</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="px-3 py-3 font-bold text-gray-800">API WhatsApp</td>
+                                        <td class="px-3 py-3 text-center"><span
+                                                class="px-2 py-0.5 rounded text-[10px] font-bold bg-gray-100 text-gray-600">⚪
+                                                Espera</span></td>
+                                        <td class="px-3 py-3 text-gray-500">Cargue datos para calcular...</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="px-3 py-3 font-bold text-gray-800">Problema CRM</td>
+                                        <td class="px-3 py-3 text-center"><span
+                                                class="px-2 py-0.5 rounded text-[10px] font-bold bg-gray-100 text-gray-600">⚪
+                                                Espera</span></td>
+                                        <td class="px-3 py-3 text-gray-500">Cargue datos para calcular...</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="px-3 py-3 font-bold text-gray-800">Integración Landing</td>
+                                        <td class="px-3 py-3 text-center"><span
+                                                class="px-2 py-0.5 rounded text-[10px] font-bold bg-gray-100 text-gray-600">⚪
+                                                Espera</span></td>
+                                        <td class="px-3 py-3 text-gray-500">Cargue datos para calcular...</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="px-3 py-3 font-bold text-gray-800">Error de Segmentación</td>
+                                        <td class="px-3 py-3 text-center"><span
+                                                class="px-2 py-0.5 rounded text-[10px] font-bold bg-gray-100 text-gray-600">⚪
+                                                Espera</span></td>
+                                        <td class="px-3 py-3 text-gray-500">Cargue datos para calcular...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Mitigation Tab Content -->
+                    <div id="mitigationTab" class="w-full hidden">
+                        <ul class="space-y-3.5 text-xs text-gray-600 leading-relaxed font-medium">
+                            <li class="flex items-start gap-2.5">
+                                <span class="text-upc-red font-bold text-base mt-0.5">&bull;</span>
+                                <div>
+                                    <strong class="text-upc-dark block text-xs">Saturación del webhook o colas de
+                                        eventos
+                                        (TI):</strong>
+                                    Gaps que se concentran en horarios pico de marketing sugieren retraso en el backend
+                                    de
+                                    ingesta. Implementar un backend de mensajería (como RabbitMQ o AWS SQS) para encolar
+                                    llamadas asíncronas de Chattigo y el CRM sin generar pérdidas de datos.
+                                </div>
+                            </li>
+                            <li class="flex items-start gap-2.5">
+                                <span class="text-upc-red font-bold text-base mt-0.5">&bull;</span>
+                                <div>
+                                    <strong class="text-upc-dark block text-xs">Caídas transaccionales del servidor
+                                        (TI):</strong>
+                                    Incidentes de severidad Crítica (&gt;40 min) suelen indicar caídas de servicio o
+                                    ventanas
+                                    de mantenimiento no planificadas. TI debe cotejar la tabla de incidentes con los
+                                    logs
+                                    del servidor IIS/Apache para diagnosticar reinicios imprevistos.
+                                </div>
+                            </li>
+                            <li class="flex items-start gap-2.5">
+                                <span class="text-upc-red font-bold text-base mt-0.5">&bull;</span>
+                                <div>
+                                    <strong class="text-upc-dark block text-xs">Pérdida de Leads en Canales Digitales
+                                        (Negocio):</strong>
+                                    Coordinar con Chattigo la auditoría de estados de conexión de los canales
+                                    (WhatsApp/Web
+                                    chat). Caídas periódicas podrían indicar desvinculaciones de token API de WhatsApp
+                                    Business.
+                                </div>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+    </div>
+
+    <!-- Main Logic Script -->
+    <script src="js/main.js"></script>
+</body>
+
+</html>
