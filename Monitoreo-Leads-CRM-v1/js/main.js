@@ -1092,8 +1092,8 @@ async function generateGeminiInsights() {
         return;
     }
 
-    // Llave ofuscada (invertida) para evitar escaneos automáticos de bots
-    const apiKey = "Uyg5FEIES9Jn0xYHqczOCWon9l8KP1yxCySazIA".split('').reverse().join('');
+    // Inserte su propia API Key de Gemini aquí
+    const apiKey = "";
 
     const list = document.getElementById('insightsList');
     const loader = document.getElementById('geminiLoader');

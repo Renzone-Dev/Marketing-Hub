@@ -46,8 +46,8 @@ Para consultar la especificación matemática completa de la deduplicación por 
 ## ⚙️ Integración con IA (Google Gemini 2.5 Flash)
 
 El botón **"Yimini IA"** utiliza el modelo cognitivo `gemini-2.5-flash` para emitir análisis estratégicos.
-*   **Seguridad:** La API Key se encuentra ofuscada mediante una inversión de cadena de texto en [js/main.js](file:///c:/Users/yry/Downloads/Antigravity/Monitoreo-Leads-CRM-v1/js/main.js) para protegerla en entornos web públicos.
-*   **Respaldo (Fallback):** En caso de desconexión o fallo en la API, el sistema autogenera 6 conclusiones locales analíticas basadas en el volumen filtrado.
+*   **Configuración de Clave:** El usuario debe colocar su propia API Key de Gemini en el archivo [js/main.js](file:///c:/Users/yry/Downloads/Antigravity/Monitoreo-Leads-CRM-v1/js/main.js) para habilitar esta funcionalidad.
+*   **Respaldo (Fallback):** En caso de no configurar la API Key, desconexión o fallo en la API, el sistema autogenera 6 conclusiones locales analíticas basadas en el volumen filtrado.
 
 ---
 
