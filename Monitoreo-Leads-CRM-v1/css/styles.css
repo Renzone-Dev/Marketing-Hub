@@ -1,0 +1,31 @@
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: #f3f4f6;
+    color: #111827;
+}
+
+.upc-red {
+    color: #D50000;
+}
+
+.bg-upc-red {
+    background-color: #D50000;
+}
+
+.border-upc-red {
+    border-color: #D50000;
+}
+
+.card {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+    border: 1px solid #e5e7eb;
+    padding: 1.5rem;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.025);
+}

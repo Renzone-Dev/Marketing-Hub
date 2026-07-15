@@ -1,0 +1,88 @@
+================================================================================
+DASHBOARD ANALÍTICO DE LEADS - UPC (V1)
+DOCUMENTACIÓN DE LÓGICA DE NEGOCIO, FÓRMULAS Y HEURÍSTICAS DE DIAGNÓSTICO
+================================================================================
+
+Este documento detalla todas las reglas de negocio, fórmulas matemáticas, lógica de 
+limpieza de datos y generación de insights que se implementaron localmente en el 
+Dashboard de Leads (Versión 1).
+
+--------------------------------------------------------------------------------
+1. NORMALIZACIÓN Y MAPEO DE CAMPOS (FORMATO A Y B)
+--------------------------------------------------------------------------------
+El dashboard soporta dos formatos de entrada de leads:
+
+* FORMATO A (CSV Legado):
+  Columnas pre-procesadas en Excel. El sistema las lee directamente:
+  - "Dirección" (Inbound/Outbound)
+  - "Canal"
+  - "Segmento"
+  - "Fecha de creación"
+  - "Hora"
+  - "Día de la semana" (lunes, martes, miércoles, etc.)
+  - "Número de semana"
+  - "Cod Persona"
+  - "Campaña de referencia"
+
+* FORMATO B (XLSX/CSV Directo de Chattigo):
+  El sistema mapea y extrae la información en tiempo real a partir del export puro:
+  1. Dirección: Se extrae del campo "Dirección". Se limpia a "Inbound" si contiene "in" 
+     y a "Outbound" si contiene "out" (no sensible a mayúsculas/minúsculas).
+  2. Canal y Segmento: Se extraen del campo "Template Data HSM", dividiendo 
+     el texto por la primera barra diagonal (" / "):
+       - Canal = Texto antes del "/" (normalizado a WhatsApp, SMS, Email, Web, etc.).
+       - Segmento = Texto después del "/".
+  3. Identificador de Prospecto: Mapeado desde "Cod. persona (Contacto) (Contacto)".
+  4. Campaña: Mapeado desde "Campaña de referencia".
+  5. Fecha, Hora y Calendario: 
+     Se parsea la fecha y hora para construir un objeto de fecha en JS. A partir de él se calcula:
+       - Día de la semana: Mediante el índice de `Date.getDay()` mapeado a español.
+       - Número de semana (ISO 8601): Calculado mediante el algoritmo estándar de la 
+         semana ISO.
+       - Hora_parsed: Extrae la hora como entero (0 a 23).
+
+--------------------------------------------------------------------------------
+2. CÁLCULO DE LEADS ÚNICOS (DEDUPLICACIÓN CRONOLÓGICA)
+--------------------------------------------------------------------------------
+El dashboard calcula los prospectos netos (Leads Únicos) mediante la siguiente regla:
+1. Agrupa todos los registros activos del CRM utilizando el identificador "Cod Persona".
+2. Para cada "Cod Persona", ordena todas sus interacciones cronológicamente 
+   calculando el timestamp:
+     Timestamp = (Fecha_en_Ms) + (Hora_en_Ms)
+3. Selecciona únicamente el primer registro (el más antiguo) de cada persona.
+4. La suma de estos primeros registros representa el KPI de Leads Únicos.
+
+--------------------------------------------------------------------------------
+3. CÁLCULO DE TABLAS DINÁMICAS (PIVOT TABLES) Y PROMEDIOS
+--------------------------------------------------------------------------------
+* Promedio de Registros Diarios:
+  Calcula el total de leads (actividad) en el periodo filtrado y lo divide entre 7:
+    Promedio_Diario = Total_Leads_Filtrados / 7
+
+* Promedio de Registros Semanales:
+  Divide el total de leads entre la cantidad de semanas únicas presentes en los datos:
+    Promedio_Semanal = Total_Leads_Filtrados / Cantidad_Semanas_Unicas
+
+--------------------------------------------------------------------------------
+4. HEURÍSTICAS DE INSIGHTS AUTOMÁTICOS
+--------------------------------------------------------------------------------
+El dashboard calcula insights automáticos en base a la distribución estadística:
+- Dominancia de Tráfico: Comparación del % de Inbound vs Outbound.
+- Variación Semanal: Compara la cantidad de leads de la última semana con la anterior:
+    Variación % = ((Leads_Semana_Actual - Leads_Semana_Anterior) / Leads_Semana_Anterior) * 100
+- Rendimiento por Día: Día de la semana con mayor volumen.
+- Rendimiento por Hora: Hora con mayor flujo de leads.
+- Campaña, Canal y Segmento Líder: Mayor frecuencia (moda).
+
+--------------------------------------------------------------------------------
+5. INTEGRACIÓN DE INSIGHTS INTELIGENTES CON GEMINI
+--------------------------------------------------------------------------------
+Cuando el usuario solicita "Yimini IA", el sistema utiliza `gemini-2.5-flash` con:
+* API Key invertida que se revierte en tiempo de ejecución:
+    Clave_Real = "Uyg5FEIES9Jn0xYHqczOCWon9l8KP1yxCySazIA".reverse()
+* Resumen de datos en formato JSON para no enviar datos confidenciales individuales y 
+  ahorrar tokens.
+
+================================================================================
+FIN DE LA DOCUMENTACIÓN
+================================================================================

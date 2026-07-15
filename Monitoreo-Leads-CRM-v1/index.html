@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Traffic UPC</title>
+    <link rel="icon" type="image/x-icon" href="assets/icon-upc.ico">
+    <!-- Tailwind CSS (CDN) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js (CDN) -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- PapaParse (CDN) for CSV -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <!-- SheetJS (CDN) for XLSX -->
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <!-- Chart.js Plugin DataLabels -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+    <!-- html2pdf.js (CDN) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: {
+                        upc: { red: '#D50000', dark: '#1F2937', gray: '#6B7280', light: '#F9FAFB' }
+                    },
+                    animation: {
+                        'glow-pulse': 'glow-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    },
+                    keyframes: {
+                        'glow-pulse': {
+                            '0%, 100%': { transform: 'scale(1)', boxShadow: '0 0 0 0 rgba(59, 130, 246, 0.6)' },
+                            '50%': { transform: 'scale(1.05)', boxShadow: '0 0 0 10px rgba(59, 130, 246, 0)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+
+<body class="p-6">
+    <!-- Global Loader Overlay -->
+    <div id="globalLoader"
+        class="fixed inset-0 z-[100] hidden flex-col items-center justify-center bg-white/90 backdrop-blur-sm transition-opacity">
+        <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-red-600 mb-4 shadow-lg"></div>
+        <h2 class="text-xl font-semibold text-gray-800">Procesando datos...</h2>
+        <p class="text-sm text-gray-500 mt-2 text-center max-w-sm">Esto puede tardar unos segundos dependiendo del
+            tamaño del archivo.</p>
+    </div>
+
+
+
+
+    <!-- Header -->
+    <header
+        class="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 border-b border-gray-200 pb-6">
+        <div class="mb-4 md:mb-0 flex items-center">
+            <img src="assets/upc.png" alt="Logo UPC" width="" class="h-12.5 w-auto mr-4 object-contain">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-900 tracking-tight">Dashboard Analítico de Leads</h1>
+                <p class="text-gray-500 mt-1 font-medium">Monitor de Captación de Leads - CRM ✅</p>
+            </div>
+        </div>
+        <div class="flex items-center space-x-4">
+            <div class="flex items-center space-x-2">
+
+                <label
+                    class="bg-red-600 border border-gray-300 text-white px-4 py-2 rounded-lg shadow-sm cursor-pointer hover:bg-gray-50 hover:text-gray-900 font-medium transition text-sm">
+                    Cargar Datos
+                    <input type="file" id="dataFile" class="hidden" accept=".csv,.json,.xlsx,.xls">
+                </label>
+            </div>
+            <button onclick="exportToPDF()"
+                class="bg-gray-800 border border-gray-800 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-gray-900 font-medium transition text-sm flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
+                    </path>
+                </svg>
+                Exportar PDF
+            </button>
+            <a href="Monitoreo-Caidas-CRM/crm.html"
+                class="bg-blue-600 border border-blue-600 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-blue-700 font-medium transition text-sm flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+                </svg>
+                Monitoreo CRM
+            </a>
+        </div>
+    </header>
+
+    <div id="exportable-area">
+        <div class="grid grid-cols-1 md:grid-cols-6 gap-6 mb-10 kpi-container">
+            <div class="card flex flex-col justify-center">
+                <h3 class="text-gray-400 text-xs font-semibold uppercase tracking-wider">Total de Registros</h3>
+                <p id="kpiTotal" class="text-4xl font-bold text-gray-900 mt-2">0</p>
+            </div>
+            <div class="card flex flex-col justify-center">
+                <div class="group relative inline-block w-full">
+                    <h3
+                        class="text-gray-400 text-xs font-semibold uppercase tracking-wider cursor-help border-b border-dashed border-gray-400 inline-block">
+                        Leads Únicos</h3>
+                    <div
+                        class="opacity-0 w-48 bg-gray-900 text-white text-center text-xs rounded-lg py-2 absolute z-10 group-hover:opacity-100 top-full left-0 mt-2 pointer-events-none transition-opacity">
+                        Personas distintas contactadas, según su primer contacto registrado.</div>
+                </div>
+                <p id="kpiUnique" class="text-4xl font-bold text-gray-900 mt-2">0</p>
+            </div>
+            <div class="card flex flex-col justify-center">
+                <h3 class="text-gray-400 text-xs font-semibold uppercase tracking-wider">% Inbound</h3>
+                <p id="kpiInbound" class="text-4xl font-bold text-gray-900 mt-2">0%</p>
+            </div>
+            <div class="card flex flex-col justify-center">
+                <h3 class="text-gray-400 text-xs font-semibold uppercase tracking-wider">% Outbound</h3>
+                <p id="kpiOutbound" class="text-4xl font-bold text-gray-900 mt-2">0%</p>
+            </div>
+            <div class="card flex flex-col justify-center">
+                <h3 class="text-gray-400 text-xs font-semibold uppercase tracking-wider">Mejor Día</h3>
+                <p id="kpiBestDay" class="text-4xl font-bold text-gray-900 mt-2">-</p>
+            </div>
+            <div class="card flex flex-col justify-center">
+                <h3 class="text-gray-400 text-xs font-semibold uppercase tracking-wider">Mejor Horario</h3>
+                <p id="kpiBestHour" class="text-4xl font-bold text-gray-900 mt-2">-</p>
+            </div>
+        </div>
+
+        <!-- Filtros -->
+        <div class="bg-white p-6 rounded-xl border border-gray-200 shadow-sm mb-10">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-sm font-bold text-gray-800 flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z">
+                        </path>
+                    </svg>
+                    Filtros Dinámicos
+                </h2>
+                <button type="button" onclick="resetFilters()"
+                    class="text-xs font-semibold text-gray-500 hover:text-red-600 transition flex items-center gap-1 bg-gray-50 hover:bg-gray-100 px-2.5 py-1.5 rounded-md border border-gray-200">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
+                        </path>
+                    </svg>
+                    Limpiar Filtros
+                </button>
+            </div>
+            <div class="flex flex-wrap gap-5 items-start">
+                <!-- Dropdown Múltiple: Campaña -->
+                <div class="flex-1 min-w-[150px] relative" id="container-filterCampaign">
+                    <label
+                        class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Campaña</label>
+                    <select id="filterCampaign" multiple class="hidden">
+                        <option value="ALL">Todas</option>
+                    </select>
+                    <button type="button"
+                        class="w-full bg-gray-50 border border-gray-200 text-gray-700 rounded-lg p-2.5 text-left hover:bg-gray-100 focus:ring-2 focus:ring-red-100 focus:border-red-500 focus:outline-none transition text-sm flex justify-between items-center"
+                        onclick="toggleDropdown('filterCampaign', event)">
+                        <span id="label-filterCampaign" class="truncate block pr-2 font-medium">Todas</span>
+                        <svg class="w-4 h-4 text-gray-400 shrink-0 ml-2" fill="none" stroke="currentColor"
+                            viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7">
+                            </path>
+                        </svg>
+                    </button>
+                    <div id="dropdown-filterCampaign"
+                        class="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl hidden flex flex-col max-h-60">
+                        <div class="p-2 border-b border-gray-100">
+                            <input type="text" placeholder="Buscar campaña..."
+                                class="dropdown-search w-full text-xs p-1.5 border border-gray-200 rounded focus:outline-none focus:border-red-400 focus:ring-1 focus:ring-red-400 transition"
+                                data-list-id="list-filterCampaign"
+                                onkeyup="filterDropdownOptions('list-filterCampaign', this.value)"
+                                onclick="event.stopPropagation()">
+                        </div>
+                        <ul id="list-filterCampaign" class="p-1 space-y-0.5 overflow-y-auto flex-1"></ul>
+                    </div>
+                </div>
+
+                <!-- Dropdown Múltiple: Canal -->
+                <div class="flex-1 min-w-[150px] relative" id="container-filterChannel">
+                    <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Canal</label>
+                    <select id="filterChannel" multiple class="hidden">
+                        <option value="ALL">Todos</option>
+                    </select>
+                    <button type="button"
+                        class="w-full bg-gray-50 border border-gray-200 text-gray-700 rounded-lg p-2.5 text-left hover:bg-gray-100 focus:ring-2 focus:ring-red-100 focus:border-red-500 focus:outline-none transition text-sm flex justify-between items-center"
+                        onclick="toggleDropdown('filterChannel', event)">
+                        <span id="label-filterChannel" class="truncate block pr-2 font-medium">Todos</span>
+                        <svg class="w-4 h-4 text-gray-400 shrink-0 ml-2" fill="none" stroke="currentColor"
+                            viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7">
+                            </path>
+                        </svg>
+                    </button>
+                    <div id="dropdown-filterChannel"
+                        class="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl hidden flex flex-col max-h-60">
+                        <div class="p-2 border-b border-gray-100">
+                            <input type="text" placeholder="Buscar canal..."
+                                class="dropdown-search w-full text-xs p-1.5 border border-gray-200 rounded focus:outline-none focus:border-red-400 focus:ring-1 focus:ring-red-400 transition"
+                                data-list-id="list-filterChannel"
+                                onkeyup="filterDropdownOptions('list-filterChannel', this.value)"
+                                onclick="event.stopPropagation()">
+                        </div>
+                        <ul id="list-filterChannel" class="p-1 space-y-0.5 overflow-y-auto flex-1"></ul>
+                    </div>
+                </div>
+
+                <!-- Dropdown Múltiple: Segmento -->
+                <div class="flex-1 min-w-[150px] relative" id="container-filterSegment">
+                    <label
+                        class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Segmento</label>
+                    <select id="filterSegment" multiple class="hidden">
+                        <option value="ALL">Todos</option>
+                    </select>
+                    <button type="button"
+                        class="w-full bg-gray-50 border border-gray-200 text-gray-700 rounded-lg p-2.5 text-left hover:bg-gray-100 focus:ring-2 focus:ring-red-100 focus:border-red-500 focus:outline-none transition text-sm flex justify-between items-center"
+                        onclick="toggleDropdown('filterSegment', event)">
+                        <span id="label-filterSegment" class="truncate block pr-2 font-medium">Todos</span>
+                        <svg class="w-4 h-4 text-gray-400 shrink-0 ml-2" fill="none" stroke="currentColor"
+                            viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7">
+                            </path>
+                        </svg>
+                    </button>
+                    <div id="dropdown-filterSegment"
+                        class="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl hidden flex flex-col max-h-60">
+                        <div class="p-2 border-b border-gray-100">
+                            <input type="text" placeholder="Buscar segmento..."
+                                class="dropdown-search w-full text-xs p-1.5 border border-gray-200 rounded focus:outline-none focus:border-red-400 focus:ring-1 focus:ring-red-400 transition"
+                                data-list-id="list-filterSegment"
+                                onkeyup="filterDropdownOptions('list-filterSegment', this.value)"
+                                onclick="event.stopPropagation()">
+                        </div>
+                        <ul id="list-filterSegment" class="p-1 space-y-0.5 overflow-y-auto flex-1"></ul>
+                    </div>
+                </div>
+
+                <!-- Dropdown Múltiple: Semana -->
+                <div class="flex-1 min-w-[150px] relative" id="container-filterWeek">
+                    <label
+                        class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Semana</label>
+                    <select id="filterWeek" multiple class="hidden">
+                        <option value="ALL">Todas</option>
+                    </select>
+                    <button type="button"
+                        class="w-full bg-gray-50 border border-gray-200 text-gray-700 rounded-lg p-2.5 text-left hover:bg-gray-100 focus:ring-2 focus:ring-red-100 focus:border-red-500 focus:outline-none transition text-sm flex justify-between items-center"
+                        onclick="toggleDropdown('filterWeek', event)">
+                        <span id="label-filterWeek" class="truncate block pr-2 font-medium">Todas</span>
+                        <svg class="w-4 h-4 text-gray-400 shrink-0 ml-2" fill="none" stroke="currentColor"
+                            viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7">
+                            </path>
+                        </svg>
+                    </button>
+                    <div id="dropdown-filterWeek"
+                        class="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl hidden max-h-60 overflow-y-auto">
+                        <ul id="list-filterWeek" class="p-1 space-y-0.5"></ul>
+                    </div>
+                </div>
+
+                <!-- Dropdown Múltiple: Fecha -->
+                <div class="flex-1 min-w-[150px] relative" id="container-filterDate">
+                    <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Fecha</label>
+                    <select id="filterDate" multiple class="hidden">
+                        <option value="ALL">Todas</option>
+                    </select>
+                    <button type="button"
+                        class="w-full bg-gray-50 border border-gray-200 text-gray-700 rounded-lg p-2.5 text-left hover:bg-gray-100 focus:ring-2 focus:ring-red-100 focus:border-red-500 focus:outline-none transition text-sm flex justify-between items-center"
+                        onclick="toggleDropdown('filterDate', event)">
+                        <span id="label-filterDate" class="truncate block pr-2 font-medium">Todas</span>
+                        <svg class="w-4 h-4 text-gray-400 shrink-0 ml-2" fill="none" stroke="currentColor"
+                            viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7">
+                            </path>
+                        </svg>
+                    </button>
+                    <div id="dropdown-filterDate"
+                        class="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl hidden max-h-60 overflow-y-auto">
+                        <ul id="list-filterDate" class="p-1 space-y-0.5"></ul>
+                    </div>
+                </div>
+
+                <!-- Dropdown Múltiple: Hora -->
+                <div class="flex-1 min-w-[150px] relative" id="container-filterHour">
+                    <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Hora</label>
+                    <select id="filterHour" multiple class="hidden">
+                        <option value="ALL">Todas</option>
+                    </select>
+                    <button type="button"
+                        class="w-full bg-gray-50 border border-gray-200 text-gray-700 rounded-lg p-2.5 text-left hover:bg-gray-100 focus:ring-2 focus:ring-red-100 focus:border-red-500 focus:outline-none transition text-sm flex justify-between items-center"
+                        onclick="toggleDropdown('filterHour', event)">
+                        <span id="label-filterHour" class="truncate block pr-2 font-medium">Todas</span>
+                        <svg class="w-4 h-4 text-gray-400 shrink-0 ml-2" fill="none" stroke="currentColor"
+                            viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7">
+                            </path>
+                        </svg>
+                    </button>
+                    <div id="dropdown-filterHour"
+                        class="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl hidden max-h-60 overflow-y-auto">
+                        <ul id="list-filterHour" class="p-1 space-y-0.5"></ul>
+                    </div>
+                </div>
+
+                <!-- Single Select: Dirección -->
+                <div class="flex-1 min-w-[150px]">
+                    <label
+                        class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Dirección</label>
+                    <select id="filterDirection"
+                        class="w-full bg-gray-50 border border-gray-200 text-gray-700 rounded-lg p-2.5 focus:ring-2 focus:ring-red-100 focus:border-red-500 focus:outline-none transition text-sm"
+                        onchange="applyFilters()">
+                        <option value="ALL">Todas</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Contenido Principal -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8 chart-container">
+            <!-- Gráficos -->
+            <div class="card">
+                <h2 class="text-xl font-semibold mb-4 text-gray-800">Tendencia de Leads por Fecha</h2>
+                <canvas id="lineChart" height="200"></canvas>
+            </div>
+            <div class="card">
+                <h2 class="text-xl font-semibold mb-4 text-gray-800">Leads por Día de la Semana</h2>
+                <canvas id="barChart" height="200"></canvas>
+            </div>
+            <div class="card">
+                <h2 class="text-xl font-semibold mb-4 text-gray-800">Distribución Inbound vs Outbound</h2>
+                <div class="w-2/3 mx-auto">
+                    <canvas id="doughnutChart" height="200"></canvas>
+                </div>
+            </div>
+            <div class="card flex flex-col justify-between">
+                <div>
+                    <h2 class="text-xl font-semibold mb-4 text-gray-800">Comparativa por Canal</h2>
+                    <canvas id="channelChart" height="200"></canvas>
+                </div>
+            </div>
+            <div class="card flex flex-col justify-between">
+                <div>
+                    <h2 class="text-xl font-semibold mb-4 text-gray-800">Top Campañas</h2>
+                    <div class="w-3/4 mx-auto">
+                        <canvas id="topCampaignsChart" height="200"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="card flex flex-col justify-between">
+                <div>
+                    <h2 class="text-xl font-semibold mb-4 text-gray-800">Concentración por Hora</h2>
+                    <canvas id="scatterChart" height="200"></canvas>
+                </div>
+            </div>
+            <div class="card bg-red-50/50 border-transparent shadow-none relative flex flex-col lg:col-span-2">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-lg font-semibold text-red-800 flex items-center tracking-tight">
+                        <span class="mr-2">💡</span> Insights Estratégicos
+                    </h2>
+                    <button onclick="generateGeminiInsights()"
+                        class="text-xs font-bold bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-4 py-2 rounded-full hover:from-blue-700 hover:to-indigo-700 transition-all flex items-center gap-1 shadow-lg border border-blue-400 animate-glow-pulse">
+                        <span class="text-yellow-300">✨</span> Yimini IA
+                    </button>
+                </div>
+                <div id="geminiLoader" class="hidden flex-col items-center justify-center py-4">
+                    <div class="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-600 mb-2"></div>
+                    <p class="text-xs text-blue-600 font-medium">Analizando patrones con IA...</p>
+                </div>
+                <ul id="insightsList" class="space-y-4 text-red-900 text-sm leading-relaxed flex-1">
+                    <!-- Dinámico -->
+                </ul>
+            </div>
+        </div>
+
+        <!-- Tablas Dinámicas -->
+        <div class="grid grid-cols-1 gap-8 mb-8 pivot-container">
+            <!-- Tabla Día de la Semana -->
+            <div class="card overflow-x-auto">
+                <h2 class="text-lg font-semibold mb-6 text-gray-900 tracking-tight">Dirección vs Día de la Semana
+                    (Registros Totales)</h2>
+                <div class="rounded-lg border border-gray-200 overflow-hidden">
+                    <table class="min-w-full text-sm text-left text-gray-600" id="pivotTable">
+                        <thead
+                            class="bg-gray-50 text-gray-500 uppercase text-xs tracking-wider border-b border-gray-200">
+                            <tr>
+                                <th class="px-4 py-3 font-medium">Dirección</th>
+                                <th class="px-4 py-3 font-medium">Lunes</th>
+                                <th class="px-4 py-3 font-medium">Martes</th>
+                                <th class="px-4 py-3 font-medium">Miércoles</th>
+                                <th class="px-4 py-3 font-medium">Jueves</th>
+                                <th class="px-4 py-3 font-medium">Viernes</th>
+                                <th class="px-4 py-3 font-medium">Sábado</th>
+                                <th class="px-4 py-3 font-medium">Domingo</th>
+                                <th class="px-4 py-3 font-medium text-red-600">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody id="pivotBody" class="divide-y divide-gray-100">
+                            <!-- Dinámico -->
+                        </tbody>
+                    </table>
+                </div>
+                <p id="disclaimerPivotDay" class="text-xs text-gray-500 mt-3 italic text-right font-medium"></p>
+            </div>
+
+            <!-- Tabla Semana -->
+            <div class="card overflow-x-auto">
+                <h2 class="text-lg font-semibold mb-6 text-gray-900 tracking-tight">Dirección vs Semana (Registros
+                    Totales)</h2>
+                <div class="rounded-lg border border-gray-200 overflow-hidden">
+                    <table class="min-w-full text-sm text-left text-gray-600" id="pivotSemanaTable">
+                        <thead
+                            class="bg-gray-50 text-gray-500 uppercase text-xs tracking-wider border-b border-gray-200"
+                            id="pivotSemanaHead">
+                            <!-- Dinámico -->
+                        </thead>
+                        <tbody id="pivotSemanaBody" class="divide-y divide-gray-100">
+                            <!-- Dinámico -->
+                        </tbody>
+                    </table>
+                </div>
+                <p id="disclaimerPivotWeek" class="text-xs text-gray-500 mt-3 italic text-right font-medium"></p>
+            </div>
+
+            <!-- Tabla Detallada Outbound/Inbound -->
+            <div class="card overflow-x-auto md:col-span-1">
+                <h2 class="text-lg font-semibold mb-6 text-gray-900 tracking-tight">Detalle de Registros (Inbound /
+                    Outbound)</h2>
+                <div class="rounded-lg border border-gray-200 overflow-hidden">
+                    <div class="max-h-96 overflow-y-auto">
+                        <table class="min-w-full text-sm text-left text-gray-600" id="detailedTable">
+                            <thead
+                                class="bg-gray-50 text-gray-500 uppercase text-xs tracking-wider border-b border-gray-200 sticky top-0 z-10 shadow-sm"
+                                id="detailedTableHead">
+                                <!-- Dinámico -->
+                            </thead>
+                            <tbody id="detailedTableBody" class="divide-y divide-gray-100">
+                                <!-- Dinámico -->
+                            </tbody>
+                            <tfoot id="detailedTableFoot"
+                                class="bg-gray-50 font-semibold border-t border-gray-200 text-gray-900 sticky bottom-0 z-10 shadow-sm">
+                                <!-- Dinámico -->
+                            </tfoot>
+                        </table>
+                    </div>
+                    <script src="js/main.js"></script>
+</body>
+
+</html>y: false };
+                            }
+                            charts[id].update('none');
+                        }
+                    }, 10000); // 10 segundos
+                }
+            }
+
+        </script>
+</body>
+
+</html>
